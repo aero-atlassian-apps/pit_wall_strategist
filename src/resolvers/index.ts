@@ -4,6 +4,7 @@ import { fetchBoardData, calculateTelemetry, detectStalledTickets, categorizeIss
 import { getProjectStatusMap } from './statusMap'
 import { getScopes } from '../config/scopes'
 import { calculateLeadTime, calculateCycleTime, evaluateSectorPerformance, getIssueStatusCategoryTimes, getBoardColumns, mapStatusToColumn } from './timingMetrics'
+import { cacheGet, cacheSet } from './cache'
 import { calculateWipTrend, calculateVelocityTrend } from './trendMetrics'
 import { checkProjectDevOpsStatus, detectNoCommitIssues, getMockDevOpsData } from './devOpsDetection'
 import type { TelemetryConfig, TelemetryData, CategorizedIssue, BoardData, SectorTimes, LeadTimeResult, TrendData, StalledTicket } from '../types/telemetry'
@@ -474,8 +475,12 @@ resolver.define('getCycleHints', async ({ context }: any) => {
     const statusMap = await getProjectStatusMap(projectKey)
     const boardData: BoardData = await fetchBoardData(projectKey, userConfig, context)
     const boardType = boardData.boardType
+    const cacheKey = `cycleHints:${projectKey}:${boardData.boardId || 'na'}`
+    const cached = cacheGet<any>(cacheKey)
+    if (cached) return cached
     const byType: Record<string, { total: number; count: number }> = {}
     const issues = boardData.issues || []
+    if (!issues || issues.length === 0) { const res = { success: false, code: 'NO_DATA', message: 'No issues available for hints' }; cacheSet(cacheKey, res, 5 * 60_000); return res }
     for (const issue of issues.slice(0, 50)) {
       const typeName = (issue.fields.issuetype?.name || '').toLowerCase()
       if (!typeName) continue
@@ -494,9 +499,13 @@ resolver.define('getCycleHints', async ({ context }: any) => {
       const max = clamp(avg * maxFactor)
       hints[type] = { avgInProgressHours: Math.round(avg), recommendedMin: min, recommendedMax: max }
     })
-    return { success: true, boardType, hints }
+    const res = { success: true, boardType, hints }
+    cacheSet(cacheKey, res, 10 * 60_000)
+    return res
   } catch (error: any) {
-    return { success: false, error: error.message }
+    const msg = (error?.message || '').toLowerCase()
+    const code = msg.includes('429') || msg.includes('rate') ? 'RATE_LIMITED' : (msg.includes('permission') || msg.includes('401') || msg.includes('403')) ? 'PERMISSION_DENIED' : 'UNKNOWN'
+    return { success: false, code, error: error.message || 'Failed to compute cycle hints' }
   }
 })
 

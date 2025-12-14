@@ -27,7 +27,8 @@ function SettingsPanel({ config = DEFAULT_CONFIG, boardType = 'scrum', boardName
   const [typeHints, setTypeHints] = useState<Record<string, { avgInProgressHours: number; recommendedMin: number; recommendedMax: number }>>({})
   const { resetTour } = useTour()
   useEffect(() => { setLocalConfig(config); const byType = config?.stalledThresholdHoursByType || {}; const rows = Object.keys(byType || {}).map(k => ({ typeName: k, hours: byType[k] })); setTypeRows(rows) }, [config])
-  useEffect(() => { ;(async () => { try { const bridge = await import('@forge/bridge'); const details = await bridge.invoke('getDiagnosticsDetails'); const keys = Object.keys(details?.statuses?.byIssueType || {}); setSuggestTypes(keys); const ch = await bridge.invoke('getCycleHints'); if (ch?.success) setTypeHints(ch.hints || {}) } catch {} })() }, [])
+  const [hintsError, setHintsError] = useState<string>('')
+  useEffect(() => { ;(async () => { try { const bridge = await import('@forge/bridge'); const details = await bridge.invoke('getDiagnosticsDetails'); const keys = Object.keys(details?.statuses?.byIssueType || {}); setSuggestTypes(keys); const ch = await bridge.invoke('getCycleHints'); if (ch?.success) { setTypeHints(ch.hints || {}); setHintsError('') } else { const code = ch?.code || 'UNKNOWN'; const msg = code === 'PERMISSION_DENIED' ? 'Permission denied while computing hints' : code === 'RATE_LIMITED' ? 'Rate limited while computing hints' : code === 'NO_DATA' ? 'No data available to compute hints' : 'Failed to compute hints'; setHintsError(msg) } } catch (e: any) { setHintsError(e?.message || 'Hints unavailable') } })() }, [])
   const dupeKeys = (() => { const counts: Record<string, number> = {}; typeRows.forEach(r => { const k = (r.typeName || '').trim().toLowerCase(); if (k) counts[k] = (counts[k] || 0) + 1 }); return Object.keys(counts).filter(k => counts[k] > 1) })()
   const isValid = typeRows.every(r => (r.typeName || '').trim().length > 0 && r.hours > 0) && dupeKeys.length === 0
   function handleChange(key: string, value: string) { const numValue = parseInt(value, 10) || 0; setLocalConfig((prev: any) => ({ ...prev, [key]: numValue })); setHasChanges(true) }
@@ -75,6 +76,7 @@ function SettingsPanel({ config = DEFAULT_CONFIG, boardType = 'scrum', boardName
         <SettingGroup>
           <SettingLabel>{t('perTypeThresholdsLabel', locale)}</SettingLabel>
           <SettingDescription>{t('perTypeThresholdsDesc', locale)}</SettingDescription>
+          {hintsError && (<SettingDescription style={{ color: '#ef4444' }}>{hintsError}</SettingDescription>)}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {typeRows.map((row, idx) => (
               <InputRow key={`type-row-${idx}`}>

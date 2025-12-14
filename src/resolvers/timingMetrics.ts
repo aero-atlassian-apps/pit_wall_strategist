@@ -73,8 +73,19 @@ export async function getIssueStatusCategoryTimes(issueKey: string, context?: an
   } catch (error) { return { new: 0, indeterminate: 0, done: 0 } }
 }
 
+const _colsCache: Record<string, { val: Array<{ name: string; statuses: Array<{ name: string }> }>; exp: number }> = {}
 export async function getBoardColumns(boardId: number): Promise<Array<{ name: string; statuses: Array<{ name: string }> }>> {
-  try { const resp = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/configuration`, { headers: { Accept: 'application/json' } }); if (!resp.ok) return []; const cfg = await resp.json(); const cols = cfg?.columnConfig?.columns || []; return cols.map((c: any) => ({ name: c.name as string, statuses: (c.statuses || []).map((s: any) => ({ name: s.name as string })) })) } catch { return [] }
+  const key = String(boardId)
+  const hit = _colsCache[key]
+  if (hit && Date.now() < hit.exp) return hit.val
+  try {
+    const resp = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/configuration`, { headers: { Accept: 'application/json' } })
+    if (!resp.ok) return []
+    const cfg = await resp.json()
+    const cols = (cfg?.columnConfig?.columns || []).map((c: any) => ({ name: c.name as string, statuses: (c.statuses || []).map((s: any) => ({ name: s.name as string })) }))
+    _colsCache[key] = { val: cols, exp: Date.now() + 60 * 60_000 }
+    return cols
+  } catch { return [] }
 }
 
 async function getIssueColumnTimes(issueKey: string, context?: any, statusMap?: any, columns?: Array<{ name: string; statuses: Array<{ name: string }> }>) {
