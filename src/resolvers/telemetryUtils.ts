@@ -1,7 +1,6 @@
 import api, { route } from '@forge/api'
 import type { JiraIssue, StatusCategoryKey } from '../types/jira'
-import type { TelemetryConfig, SprintData, TelemetryData, CategorizedIssue } from '../types/telemetry'
-import type { } from './statusMap'
+import type { TelemetryConfig, BoardData, TelemetryData, CategorizedIssue, BoardType, BoardContext } from '../types/telemetry'
 import { resolveCategoryForIssue } from './statusMap'
 
 const DEFAULT_CONFIG: TelemetryConfig = { wipLimit: 8, assigneeCapacity: 3, stalledThresholdHours: 24, stalledThresholdHoursByType: {}, storyPointsFieldName: 'Story Points', statusCategories: { todo: 'new', inProgress: 'indeterminate', done: 'done' }, includeBoardIssuesWhenSprintEmpty: true, locale: 'en' }
@@ -32,13 +31,11 @@ async function detectProjectType(projectKey: string): Promise<'software' | 'busi
   }
 }
 
-export type BoardType = 'scrum' | 'kanban' | 'business'
-
-export async function detectBoardType(projectKey: string): Promise<{ type: BoardType; boardId: number | null; boardName: string }> {
+export async function detectBoardType(projectKey: string): Promise<BoardContext> {
   // First check if it's a business project (no agile boards)
   const projectType = await detectProjectType(projectKey)
   if (projectType === 'business') {
-    return { type: 'business', boardId: null, boardName: 'Work Items' }
+    return { boardType: 'business', boardId: null, boardName: 'Work Items' }
   }
 
   // Try to get agile boards
@@ -46,35 +43,41 @@ export async function detectBoardType(projectKey: string): Promise<{ type: Board
   if (!response.ok) {
     // If agile API fails, fall back to business mode
     console.log(`[Telemetry] Agile API failed for ${projectKey}, falling back to business mode`)
-    return { type: 'business', boardId: null, boardName: 'Work Items' }
+    return { boardType: 'business', boardId: null, boardName: 'Work Items' }
   }
   const boards = await response.json()
   if (!boards.values?.length) {
     // No boards found, use business mode with JQL
     console.log(`[Telemetry] No agile boards for ${projectKey}, using JQL mode`)
-    return { type: 'business', boardId: null, boardName: 'Work Items' }
+    return { boardType: 'business', boardId: null, boardName: 'Work Items' }
   }
   // TODO: Logic to select the "current" board if multiple exist. Currently defaults to the first one.
   const board = boards.values[0]
   console.log(`Detected board: ${board.name} (${board.id}) for project ${projectKey}`)
-  return { type: (board.type || 'scrum') as 'scrum' | 'kanban', boardId: board.id as number, boardName: board.name as string }
+  return { boardType: (board.type || 'scrum') as 'scrum' | 'kanban', boardId: board.id as number, boardName: board.name as string }
 }
 
-export async function fetchSprintData(projectKey: string, config: TelemetryConfig = DEFAULT_CONFIG, context?: any): Promise<SprintData> {
-  console.log('[fetchSprintData] received context:', context)
+// Deprecated alias for backward compatibility
+export const fetchSprintData = fetchBoardData
+
+export async function fetchBoardData(projectKey: string, config: TelemetryConfig = DEFAULT_CONFIG, context?: any): Promise<BoardData> {
+  console.log('[fetchBoardData] received context:', context)
   const boardInfo = await detectBoardType(projectKey)
 
   // Handle Business/JWM projects (no agile boards)
-  if (boardInfo.type === 'business') {
+  if (boardInfo.boardType === 'business') {
     return fetchBusinessProjectData(projectKey, config, context)
   }
 
-  if (boardInfo.type === 'kanban') return fetchKanbanData(boardInfo.boardId!, config, context)
-  return fetchScrumSprintData(boardInfo.boardId!, config, projectKey, context)
+  if (boardInfo.boardType === 'kanban') {
+    return fetchKanbanData(boardInfo, config, context)
+  }
+
+  return fetchScrumData(boardInfo, config, projectKey, context)
 }
 
 // Fetch data for Jira Work Management (Business) projects using JQL only
-async function fetchBusinessProjectData(projectKey: string, config: TelemetryConfig, context?: any): Promise<SprintData> {
+async function fetchBusinessProjectData(projectKey: string, config: TelemetryConfig, context?: any): Promise<BoardData> {
   console.log(`[Telemetry] Fetching Business/JWM Data for Project ${projectKey} using JQL`)
 
   const jql = `project = "${projectKey}" ORDER BY updated DESC`
@@ -84,8 +87,8 @@ async function fetchBusinessProjectData(projectKey: string, config: TelemetryCon
     console.log(`[Telemetry] Business Project Issues Loaded: ${result.issues?.length || 0}`)
     return {
       boardType: 'business',
-      sprintId: null,
-      sprintName: 'Work Items',
+      boardId: null,
+      boardName: 'Work Items',
       issues: (result.issues || []) as JiraIssue[]
     }
   }
@@ -93,13 +96,14 @@ async function fetchBusinessProjectData(projectKey: string, config: TelemetryCon
   console.warn(`[Telemetry] Business Project JQL failed: ${result.status}`)
   return {
     boardType: 'business',
-    sprintId: null,
-    sprintName: 'Work Items',
+    boardId: null,
+    boardName: 'Work Items',
     issues: []
   }
 }
 
-async function fetchScrumSprintData(boardId: number, config: TelemetryConfig, projectKey?: string, context?: any): Promise<SprintData> {
+async function fetchScrumData(boardCtx: BoardContext, config: TelemetryConfig, projectKey?: string, context?: any): Promise<BoardData> {
+  const boardId = boardCtx.boardId!
   console.log(`[Telemetry] Fetching Scrum Data for Board ${boardId}, Project ${projectKey}`)
   let activeSprint: any = null
 
@@ -145,10 +149,12 @@ async function fetchScrumSprintData(boardId: number, config: TelemetryConfig, pr
 
         if (issuesData.issues?.length > 0) {
           return {
-            boardType: 'scrum',
-            sprintId: -1,
-            sprintName: 'Active Sprint (JQL Detected)',
-            sprintState: 'active',
+            ...boardCtx,
+            sprint: {
+                id: -1,
+                name: 'Active Sprint (JQL Detected)',
+                state: 'active'
+            },
             issues: (issuesData.issues || []) as JiraIssue[]
           }
         }
@@ -159,67 +165,86 @@ async function fetchScrumSprintData(boardId: number, config: TelemetryConfig, pr
   }
 
   if (!activeSprint) {
-    console.error(`[Telemetry] FATAL: No sprints found via Board ${boardId} or JQL.`)
+    // Use fallback to board issues if configured
+    if (config?.includeBoardIssuesWhenSprintEmpty !== false) {
+       console.log('[Telemetry] No active sprint found, falling back to all board issues')
+       const boardIssues = await fetchAllBoardIssues(boardId, projectKey)
+       return {
+         ...boardCtx,
+         // We don't attach a sprint object because there is no active sprint
+         issues: boardIssues
+       }
+    }
+
+    console.error(`[Telemetry] No sprints found via Board ${boardId} or JQL.`)
     throw new Error(`No active or future sprints found on board ${boardId} or via JQL in project.`)
   }
 
   console.log(`[Telemetry] Using Sprint: ${activeSprint.name} (${activeSprint.id})`)
-  const requester = () => (context?.accountId ? api.asUser() : api.asApp())
+
   // Prefer JQL (POST /rest/api/3/search) to avoid Agile endpoint 401s
   const initialJql = `sprint = ${activeSprint.id}`
   const initialJqlRes = await searchJqlUserOnly(initialJql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels'], 100)
-  if (initialJqlRes.ok && (initialJqlRes.issues?.length || 0) > 0) {
-    console.log(`[Telemetry] Sprint JQL Primary Loaded: ${initialJqlRes.issues?.length || 0}`)
-    return { boardType: 'scrum', sprintId: activeSprint.id as number, sprintName: activeSprint.name as string, sprintState: activeSprint.state as string, issues: (initialJqlRes.issues || []) as JiraIssue[] }
+
+  const sprintObj = {
+      id: activeSprint.id,
+      name: activeSprint.name,
+      state: activeSprint.state,
+      startDate: activeSprint.startDate,
+      endDate: activeSprint.endDate,
+      goal: activeSprint.goal
   }
 
-  if (config?.includeBoardIssuesWhenSprintEmpty !== false) {
-    try {
-      // Already tried sprint JQL above; continue with board fallback
+  if (initialJqlRes.ok && (initialJqlRes.issues?.length || 0) > 0) {
+    console.log(`[Telemetry] Sprint JQL Primary Loaded: ${initialJqlRes.issues?.length || 0}`)
+    return { ...boardCtx, sprint: sprintObj, issues: (initialJqlRes.issues || []) as JiraIssue[] }
+  }
 
+  // Fallback to fetching board issues
+  const boardIssues = await fetchAllBoardIssues(boardId, projectKey, activeSprint.id)
+  return { ...boardCtx, sprint: sprintObj, issues: boardIssues }
+}
+
+async function fetchAllBoardIssues(boardId: number, projectKey?: string, sprintId?: number): Promise<JiraIssue[]> {
+    try {
       const cfgResponse = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/configuration`, { headers: { Accept: 'application/json' } })
       let filterId: number | null = null
       if (cfgResponse.ok) {
         const cfg = await cfgResponse.json()
         filterId = cfg?.filter?.id || null
-      } else {
-        console.log(`[Telemetry] Board Config API Error: ${cfgResponse.status}`)
       }
+
       if (filterId) {
-        const jql = `filter = ${filterId}`
+        let jql = `filter = ${filterId}`
+        // If we know the sprint ID, try to filter by it
+        if (sprintId) {
+            jql += ` AND sprint = ${sprintId}`
+        }
+
         const boardJqlRes = await searchJqlUserOnly(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels'], 100)
         if (boardJqlRes.ok) {
           console.log(`[Telemetry] Fallback: Board Issues Loaded via JQL filter ${filterId}: ${boardJqlRes.issues?.length || 0}`)
-          return { boardType: 'scrum', sprintId: activeSprint.id as number, sprintName: activeSprint.name as string, sprintState: activeSprint.state as string, issues: (boardJqlRes.issues || []) as JiraIssue[] }
-        } else {
-          console.log(`[Telemetry] Board Issues JQL API Error: ${boardJqlRes.status || 'unknown'}`)
+          return (boardJqlRes.issues || []) as JiraIssue[]
         }
       }
+
       // Skip Agile board issues; rely on JQL-only
       if (projectKey) {
         const projJql = `project = "${projectKey}" ORDER BY updated DESC`
         const projRes = await searchJqlUserOnly(projJql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels'], 100)
         if (projRes.ok) {
           console.log(`[Telemetry] Fallback: Project Issues Loaded: ${projRes.issues?.length || 0}`)
-          if ((projRes.issues?.length || 0) > 0) {
-            return { boardType: 'scrum', sprintId: activeSprint.id as number, sprintName: activeSprint.name as string, sprintState: activeSprint.state as string, issues: (projRes.issues || []) as JiraIssue[] }
-          }
-        } else {
-          console.log(`[Telemetry] Project JQL API Error: ${projRes.status || 'unknown'}`)
+          return (projRes.issues || []) as JiraIssue[]
         }
       }
     } catch (e) {
       console.log('[Telemetry] Board Issues Fallback Exception', e)
     }
-  }
-
-  // Last resort removed: avoid Agile sprint issues to prevent 401 loop
-  const issuesData: any = { issues: [] }
-
-  return { boardType: 'scrum', sprintId: activeSprint.id as number, sprintName: activeSprint.name as string, sprintState: activeSprint.state as string, issues: (issuesData.issues || []) as JiraIssue[] }
+    return []
 }
 
-async function fetchKanbanData(boardId: number, config: TelemetryConfig, context?: any): Promise<SprintData> {
+async function fetchKanbanData(boardCtx: BoardContext, config: TelemetryConfig, context?: any): Promise<BoardData> {
+  const boardId = boardCtx.boardId!
   console.log(`[Telemetry] Fetching Kanban Data for Board ${boardId}`)
 
   // Strategy 1: Try Board API endpoint
@@ -233,7 +258,7 @@ async function fetchKanbanData(boardId: number, config: TelemetryConfig, context
       const issuesData = await issuesResponse.json()
       console.log(`[Telemetry] Kanban Board API: ${issuesData.issues?.length || 0} issues found`)
       if (issuesData.issues?.length > 0) {
-        return { boardType: 'kanban', sprintId: null, sprintName: 'Kanban Board', issues: (issuesData.issues || []) as JiraIssue[] }
+        return { ...boardCtx, issues: (issuesData.issues || []) as JiraIssue[] }
       }
     } else {
       console.log(`[Telemetry] Kanban Board API Error: ${issuesResponse.status}`)
@@ -243,29 +268,9 @@ async function fetchKanbanData(boardId: number, config: TelemetryConfig, context
   }
 
   // Strategy 2: JQL Fallback via board filter
-  try {
-    console.log('[Telemetry] Kanban: Trying board filter JQL fallback...')
-    const cfgResponse = await api.asApp().requestJira(
-      route`/rest/agile/1.0/board/${boardId}/configuration`,
-      { headers: { Accept: 'application/json' } }
-    )
-
-    if (cfgResponse.ok) {
-      const cfg = await cfgResponse.json()
-      const filterId = cfg?.filter?.id
-
-      if (filterId) {
-        const jql = `filter = ${filterId}`
-        const jqlRes = await searchJqlUserOnly(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels'], 100)
-
-        if (jqlRes.ok && (jqlRes.issues?.length || 0) > 0) {
-          console.log(`[Telemetry] Kanban JQL Fallback: ${jqlRes.issues?.length} issues via filter ${filterId}`)
-          return { boardType: 'kanban', sprintId: null, sprintName: 'Kanban Board', issues: (jqlRes.issues || []) as JiraIssue[] }
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('[Telemetry] Kanban filter JQL fallback exception:', e)
+  const issuesFromFilter = await fetchAllBoardIssues(boardId)
+  if (issuesFromFilter.length > 0) {
+      return { ...boardCtx, issues: issuesFromFilter }
   }
 
   // Strategy 3: Project-based JQL fallback
@@ -286,7 +291,7 @@ async function fetchKanbanData(boardId: number, config: TelemetryConfig, context
 
         if (jqlRes.ok && (jqlRes.issues?.length || 0) > 0) {
           console.log(`[Telemetry] Kanban Project JQL Fallback: ${jqlRes.issues?.length} issues`)
-          return { boardType: 'kanban', sprintId: null, sprintName: 'Kanban Board', issues: (jqlRes.issues || []) as JiraIssue[] }
+          return { ...boardCtx, issues: (jqlRes.issues || []) as JiraIssue[] }
         }
       }
     }
@@ -296,34 +301,71 @@ async function fetchKanbanData(boardId: number, config: TelemetryConfig, context
 
   // Return empty board if all strategies fail
   console.log('[Telemetry] Kanban: All strategies exhausted, returning empty board')
-  return { boardType: 'kanban', sprintId: null, sprintName: 'Kanban Board', issues: [] }
+  return { ...boardCtx, issues: [] }
 }
 
-export async function calculateTelemetry(sprintData: SprintData, config: TelemetryConfig = DEFAULT_CONFIG, statusMap?: any): Promise<TelemetryData> {
-  const issues = sprintData.issues
+export async function calculateTelemetry(boardData: BoardData, config: TelemetryConfig = DEFAULT_CONFIG, statusMap?: any): Promise<TelemetryData> {
+  const issues = boardData.issues
   const customFields = await discoverCustomFields()
   const todoIssues = issues.filter(i => getStatusCategory(i, statusMap) === config.statusCategories.todo)
   const inProgressIssues = issues.filter(i => getStatusCategory(i, statusMap) === config.statusCategories.inProgress)
   const doneIssues = issues.filter(i => getStatusCategory(i, statusMap) === config.statusCategories.done)
+
   const wipCurrent = inProgressIssues.length
   const wipLimit = config.wipLimit
-  const wipLoad = Math.round((wipCurrent / wipLimit) * 100)
+
+  // WIP Load: In Scrum this is usually relative to team capacity
+  // In Kanban, this is relative to WIP Limit
+  const wipLoad = wipLimit > 0 ? Math.round((wipCurrent / wipLimit) * 100) : 0
+
   const assigneeLoad: Record<string, number> = {}
   const assigneeCapacity = config.assigneeCapacity
   inProgressIssues.forEach(issue => { const assignee = issue.fields.assignee?.displayName || 'Unassigned'; assigneeLoad[assignee] = (assigneeLoad[assignee] || 0) + 1 })
   const teamBurnout: Record<string, number> = {}
   Object.entries(assigneeLoad).forEach(([name, count]) => { const firstName = name.toLowerCase().split(' ')[0]; teamBurnout[firstName] = Math.round((count / assigneeCapacity) * 100) })
+
   const storyPointsField = customFields.storyPoints
   const getPoints = (issue: JiraIssue) => { if (!storyPointsField) return 1; return (issue.fields as any)[storyPointsField] || 0 }
   const totalStoryPoints = issues.reduce((sum, i) => sum + getPoints(i), 0)
   const doneStoryPoints = doneIssues.reduce((sum, i) => sum + getPoints(i), 0)
-  const expectedProgress = 50
-  const actualProgress = totalStoryPoints > 0 ? Math.round((doneStoryPoints / totalStoryPoints) * 100) : 0
-  const velocityDelta = actualProgress - expectedProgress
-  let sprintStatus: TelemetryData['sprintStatus'] = 'OPTIMAL'
-  if (velocityDelta < -20 || wipLoad > 100) sprintStatus = 'CRITICAL'
-  else if (velocityDelta < -10 || wipLoad > 80) sprintStatus = 'WARNING'
-  return { boardType: sprintData.boardType, sprintStatus, velocityDelta, wipLoad, wipLimit, wipCurrent, teamBurnout, issuesByStatus: { todo: todoIssues.length, inProgress: inProgressIssues.length, done: doneIssues.length } }
+
+  const completion = totalStoryPoints > 0 ? Math.round((doneStoryPoints / totalStoryPoints) * 100) : 0
+
+  let velocityDelta = 0
+  // Velocity Delta only makes sense if we have a target (e.g. time based in Scrum)
+  if (boardData.boardType === 'scrum' && boardData.sprint?.startDate && boardData.sprint?.endDate) {
+      const now = new Date()
+      const start = new Date(boardData.sprint.startDate)
+      const end = new Date(boardData.sprint.endDate)
+      const totalDuration = end.getTime() - start.getTime()
+      const elapsed = now.getTime() - start.getTime()
+      const expectedProgress = Math.min(100, Math.max(0, Math.round((elapsed / totalDuration) * 100)))
+      velocityDelta = completion - expectedProgress
+  }
+
+  let healthStatus: TelemetryData['healthStatus'] = 'OPTIMAL'
+
+  if (boardData.boardType === 'scrum') {
+      if (velocityDelta < -20 || wipLoad > 100) healthStatus = 'CRITICAL'
+      else if (velocityDelta < -10 || wipLoad > 80) healthStatus = 'WARNING'
+  } else {
+      // Kanban / Business Logic
+      if (wipLoad > 100) healthStatus = 'CRITICAL'
+      else if (wipLoad > 90) healthStatus = 'WARNING'
+  }
+
+  return {
+      boardType: boardData.boardType,
+      healthStatus,
+      sprintStatus: healthStatus, // Backward compat
+      velocityDelta,
+      wipLoad,
+      wipLimit,
+      wipCurrent,
+      teamBurnout,
+      completion,
+      issuesByStatus: { todo: todoIssues.length, inProgress: inProgressIssues.length, done: doneIssues.length }
+  }
 }
 
 function getStatusCategory(issue: JiraIssue, statusMap?: any): StatusCategoryKey {

@@ -9,6 +9,18 @@ vi.mock('@forge/api', () => ({
 }))
 
 vi.mock('../../src/resolvers/telemetryUtils', () => ({
+    // Mock the alias directly if possible or the underlying function
+    fetchBoardData: vi.fn().mockResolvedValue({
+        issues: [
+            { key: 'TEST-1', status: 'To Do', statusCategory: 'new' },
+            { key: 'TEST-2', status: 'In Progress', statusCategory: 'indeterminate' },
+            { key: 'TEST-3', status: 'Done', statusCategory: 'done' },
+            { key: 'TEST-4', status: 'Weird Status', statusCategory: 'new' }
+        ],
+        sprint: { name: 'Test Sprint' },
+        boardType: 'scrum',
+        boardId: 1
+    }),
     fetchSprintData: vi.fn().mockResolvedValue({
         issues: [
             { key: 'TEST-1', status: 'To Do', statusCategory: 'new' },
@@ -16,8 +28,9 @@ vi.mock('../../src/resolvers/telemetryUtils', () => ({
             { key: 'TEST-3', status: 'Done', statusCategory: 'done' },
             { key: 'TEST-4', status: 'Weird Status', statusCategory: 'new' }
         ],
-        sprintName: 'Test Sprint',
-        boardType: 'scrum'
+        sprint: { name: 'Test Sprint' },
+        boardType: 'scrum',
+        boardId: 1
     }),
     calculateTelemetry: vi.fn(),
     detectStalledTickets: vi.fn().mockReturnValue([]),

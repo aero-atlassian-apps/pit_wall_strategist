@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
 import DashboardLayout from './components/Dashboard/DashboardLayout'
 import TrackMap from './components/Dashboard/TrackMap'
-import PitWallEngineer from './components/Dashboard/PitWallEngineer'
+import StrategyAssistant from './components/Dashboard/StrategyAssistant'
 import TelemetryDeck from './components/Dashboard/TelemetryDeck'
 import SprintHealthGauge from './components/Dashboard/SprintHealthGauge'
 import PredictiveAlertsPanel from './components/Dashboard/PredictiveAlertsPanel'
@@ -15,6 +15,7 @@ import mockData from './data/mock-data.json'
 import { getMockIssues, getMockTelemetry, getMockTiming, getMockTrends, getMockDevOps } from './mocks'
 import { IconButton, RefreshIcon } from './components/Common/Buttons'
 import { t } from './i18n'
+import { BoardContextProvider, useBoardContext } from './context/BoardContext'
 
 import { invoke } from '@forge/bridge'
 
@@ -33,7 +34,8 @@ const SettingsOverlay = (props: any) => <div className="settings-overlay" {...pr
 const TelemetryColumn = (props: any) => <div className="telemetry-col" {...props} />
 const RaceControlColumn = (props: any) => <div className="racecontrol-col" {...props} />
 
-function App() {
+function InnerApp() {
+  const { boardType, setBoardContext, boardName, sprintStatus } = useBoardContext()
   const [telemetryData, setTelemetryData] = useState<any>(null)
   const [issues, setIssues] = useState<any[]>([])
   const [boardColumns, setBoardColumns] = useState<string[]>([])
@@ -41,7 +43,6 @@ function App() {
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedTicket, setSelectedTicket] = useState<any>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [boardType, setBoardType] = useState<'scrum' | 'kanban'>('scrum')
   const [timingMetrics, setTimingMetrics] = useState<any>(null)
   const [trendData, setTrendData] = useState<any>(null)
   const [devOpsData, setDevOpsData] = useState<any>(null)
@@ -62,7 +63,9 @@ function App() {
 
   async function fetchData() {
     if (!isForgeContext()) {
-      setTelemetryData(getMockTelemetry())
+      const mockTel = getMockTelemetry()
+      setTelemetryData(mockTel)
+      setBoardContext({ boardType: mockTel.boardType, boardName: 'Mock Board' })
       setIssues(getMockIssues())
       setTimingMetrics(getMockTiming())
       setTrendData(getMockTrends())
@@ -75,6 +78,12 @@ function App() {
       const result = await invoke('getTelemetryData')
       if (result.success) {
         setTelemetryData(result.data)
+        setBoardContext({
+            boardType: result.data.boardType,
+            boardName: result.data.sprintName, // Using sprintName as display name for period
+            sprintName: result.data.sprintName,
+            healthStatus: result.data.healthStatus || result.data.sprintStatus
+        })
       } else {
         console.error('Failed to load telemetry:', result.error)
         setError(result.error || 'Failed to load telemetry data')
@@ -105,9 +114,6 @@ function App() {
         const contextResult = await invoke('getContext') as any
         if (contextResult?.success && contextResult.context) {
           setProjectContext(contextResult.context)
-          if (contextResult.context.boardType) {
-            setBoardType(contextResult.context.boardType as 'scrum' | 'kanban')
-          }
         }
       } catch { }
 
@@ -133,13 +139,31 @@ function App() {
 
   async function refreshHealth() { try { const res = await invoke('getHealth'); if (res?.success) setHealthData(res) } catch { } }
   async function refreshAll() { setLoading(true); await fetchData() }
+  // Granular refreshes
   async function refreshDevOps() { try { const res = await invoke('getDevOpsStatus'); if (res?.success) setDevOpsData(res) } catch { } }
   async function refreshTrends() { try { const res = await invoke('getTrendData'); if (res?.success) setTrendData(res) } catch { } }
-  async function refreshTelemetry() { try { const res = await invoke('getTelemetryData'); if (res?.success) setTelemetryData(res.data) } catch { } }
+  async function refreshTelemetry() {
+      try {
+          const res = await invoke('getTelemetryData')
+          if (res?.success) {
+              setTelemetryData(res.data)
+              // Update context lightly
+              if (res.data.healthStatus !== sprintStatus) {
+                  setBoardContext({
+                    boardType: res.data.boardType,
+                    boardName: res.data.sprintName,
+                    healthStatus: res.data.healthStatus
+                  })
+              }
+          }
+      } catch { }
+  }
   async function refreshTiming() { try { const res = await invoke('getTimingMetrics'); if (res?.success) setTimingMetrics(res) } catch { } }
   async function refreshIssues() { try { const res = await invoke('getSprintIssues'); if (res?.success) setIssues(res.issues) } catch { } }
 
   if (loading) return (<AppContainer><LoadingScreen /></AppContainer>)
+
+  const displayStatus = telemetryData?.healthStatus || telemetryData?.sprintStatus || 'OPTIMAL'
 
   return (
     <AppContainer>
@@ -149,7 +173,7 @@ function App() {
           <LogoText>Pit Wall Strategist</LogoText>
         </Logo>
         <HeaderRight>
-          <StatusBadge status={telemetryData?.sprintStatus || 'OPTIMAL'}>{boardType === 'kanban' ? t('flow', locale) : t('sprint', locale)}: {telemetryData?.sprintStatus || 'OPTIMAL'}</StatusBadge>
+          <StatusBadge status={displayStatus}>{boardType === 'kanban' ? t('flow', locale) : t('sprint', locale)}: {displayStatus}</StatusBadge>
           {timingMetrics?.hasUnmapped && (<span title={t('unmappedTransitions', locale)} style={{ marginLeft: 8, fontFamily: 'monospace', fontSize: 12, color: '#f59e0b' }}>⚠</span>)}
 
           <SettingsButton $active={dictionaryOpen} onClick={() => setDictionaryOpen(!dictionaryOpen)} title={t('glossary', locale)} style={{ marginRight: 8 }}>📖</SettingsButton>
@@ -160,7 +184,7 @@ function App() {
       {error && (<Notice>{error.includes('Unauthorized') || error.includes('permission') ? 'Insufficient permissions to read issues. Ensure app has Browse Projects and issue security visibility.' : error}{perms ? ` | UserBrowse: ${perms.userBrowse ? 'yes' : 'no'} | AppBrowse: ${perms.appBrowse ? 'yes' : 'no'} | SprintField: ${perms.hasSprintField ? 'yes' : 'no'}` : ''}</Notice>)}
       {settingsOpen ? (
         <SettingsOverlay>
-          <SettingsPanel config={config as any} boardType={boardType} boardName={telemetryData?.sprintName || 'Board'} onSave={(newConfig: any) => {
+          <SettingsPanel config={config as any} boardType={boardType} boardName={boardName || 'Board'} onSave={(newConfig: any) => {
             setConfig(newConfig);
             // Immediately update locale if changed - no refresh needed
             if (newConfig.locale && newConfig.locale !== locale) {
@@ -180,7 +204,7 @@ function App() {
               trendData={trendData}
               boardType={boardType}
               projectContext={projectContext}
-              onRefresh={refreshAll}
+              onRefresh={refreshTelemetry}
             />
 
             {/* P0 Intelligence Features */}
@@ -204,14 +228,14 @@ function App() {
               <TrackMap issues={issues} columns={boardColumns} locale={locale} />
             ) : (
               <EmptyState
-                title={error ? t('connectionLost', locale) : (telemetryData?.boardType === 'scrum' ? t('noSprintIssues', locale) : t('noBoardIssues', locale))}
+                title={error ? t('connectionLost', locale) : (boardType === 'scrum' ? t('noSprintIssues', locale) : t('noBoardIssues', locale))}
                 description={error ? `${t('error', locale)}: ${error}` : t('emptyStateDesc', locale)}
               />
             )}
           </div>
 
           <RaceControlColumn>
-            <PitWallEngineer
+            <StrategyAssistant
               feed={telemetryData?.feed || []}
               alertActive={telemetryData?.alertActive || false}
               onBoxBox={handleBoxBox}
@@ -247,6 +271,14 @@ function App() {
       <TerminologyModal open={dictionaryOpen} onClose={() => setDictionaryOpen(false)} />
       <DiagnosticsModal open={diagnosticsOpen} onClose={() => setDiagnosticsOpen(false)} health={healthData} />
     </AppContainer>
+  )
+}
+
+function App() {
+  return (
+    <BoardContextProvider>
+      <InnerApp />
+    </BoardContextProvider>
   )
 }
 

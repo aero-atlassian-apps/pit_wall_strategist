@@ -5,6 +5,7 @@ import Sparkline from '../Common/Sparkline'
 import StatusLight from '../Common/StatusLight'
 import { IconButton, RefreshIcon } from '../Common/Buttons'
 import { t } from '../../i18n'
+import { useBoardContext } from '../../context/BoardContext'
 
 const DeckContainer = styled.div`
   display: flex;
@@ -109,7 +110,7 @@ type Props = {
     telemetryData: any
     timingMetrics: any
     trendData: any
-    boardType?: 'scrum' | 'kanban' | 'unknown'
+    boardType?: 'scrum' | 'kanban' | 'business'
     projectContext?: any
     onRefresh: () => void
 }
@@ -117,7 +118,9 @@ type Props = {
 export default function TelemetryDeck({ telemetryData, timingMetrics, trendData, boardType = 'scrum', projectContext, onRefresh }: Props) {
     const locale = (window as any).__PWS_LOCALE || 'en'
     const [activeTab, setActiveTab] = useState<'vitals' | 'trends'>('vitals')
-    const isKanban = boardType === 'kanban'
+    const { boardType: ctxBoardType } = useBoardContext() // prefer context if available
+    const effectiveBoardType = ctxBoardType || boardType
+    const isKanban = effectiveBoardType === 'kanban'
 
     // Helper to get colors
     const getWipColor = (load: number) => {
@@ -140,7 +143,7 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                         <>
                             <VitalCard>
                                 <VitalValue>{timingMetrics?.cycleTime?.average || '-'}h</VitalValue>
-                                <VitalLabel>Cycle Time</VitalLabel>
+                                <VitalLabel>Avg Cycle Time</VitalLabel>
                             </VitalCard>
                             <VitalCard>
                                 <VitalValue>{telemetryData?.throughput || trendData?.velocity?.total || '-'}</VitalValue>
@@ -150,12 +153,12 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                     ) : (
                         <>
                             <VitalCard>
-                                <VitalValue>{timingMetrics?.leadTime?.current || '-'}</VitalValue>
-                                <VitalLabel>Lead Time</VitalLabel>
+                                <VitalValue>{timingMetrics?.leadTime?.average || '-'}</VitalValue>
+                                <VitalLabel>Avg Lead Time</VitalLabel>
                             </VitalCard>
                             <VitalCard>
-                                <VitalValue>{timingMetrics?.raceStatus?.lapsComplete || 0}%</VitalValue>
-                                <VitalLabel>Sprint Progress</VitalLabel>
+                                <VitalValue>{telemetryData?.completion || 0}%</VitalValue>
+                                <VitalLabel>Completion</VitalLabel>
                             </VitalCard>
                         </>
                     )}
@@ -168,10 +171,10 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
 
                 {activeTab === 'vitals' && (
                     <>
-                        <SectionHeader>{t('workInProgress', locale)}</SectionHeader>
+                        <SectionHeader>{isKanban ? "Flow Load" : t('workInProgress', locale)}</SectionHeader>
                         <BarContainer>
                             <BarLabelRow>
-                                <span>Sprint Load</span>
+                                <span>{isKanban ? "WIP Utilization" : "Sprint Load"}</span>
                                 <BarValues style={{ color: getWipColor(telemetryData?.wipLoad || 0) }}>
                                     {telemetryData?.wipCurrent || 0}/{telemetryData?.wipLimit || 0}
                                 </BarValues>

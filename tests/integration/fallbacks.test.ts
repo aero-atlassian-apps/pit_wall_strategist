@@ -38,7 +38,10 @@ describe('fetchSprintData fallbacks', () => {
     const data = await telemetry.fetchSprintData('TEST')
     expect(data.boardType).toBe('scrum')
     expect((data.issues || []).length).toBeGreaterThan(0)
-    expect(String(data.sprintName)).toContain('Sprint')
+    // sprintName property is deprecated in favor of sprint.name, but if we are using the new structure it might not be on the root.
+    // The previous implementation added it to the root if calling fetchSprintData alias.
+    // However, the new fetchBoardData returns BoardData where sprint info is in `sprint` object.
+    expect(data.sprint?.name).toContain('Sprint')
   })
 })
 
