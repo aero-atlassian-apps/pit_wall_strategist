@@ -1,13 +1,12 @@
 import Resolver from '@forge/resolver'
 import api, { storage, route } from '@forge/api'
-import { fetchSprintData, calculateTelemetry, detectStalledTickets, categorizeIssues, discoverCustomFields, detectBoardType, DEFAULT_CONFIG } from './telemetryUtils'
+import { fetchBoardData, calculateTelemetry, detectStalledTickets, categorizeIssues, discoverCustomFields, detectBoardType, DEFAULT_CONFIG, getFieldCacheSnapshot } from './telemetryUtils'
 import { getProjectStatusMap } from './statusMap'
-import { getFieldCacheSnapshot } from './telemetryUtils'
 import { getScopes } from '../config/scopes'
 import { calculateLeadTime, calculateCycleTime, evaluateSectorPerformance, getIssueStatusCategoryTimes, getBoardColumns, mapStatusToColumn } from './timingMetrics'
 import { calculateWipTrend, calculateVelocityTrend } from './trendMetrics'
 import { checkProjectDevOpsStatus, detectNoCommitIssues, getMockDevOpsData } from './devOpsDetection'
-import type { TelemetryConfig, TelemetryData, CategorizedIssue, SprintData, SectorTimes, LeadTimeResult, TrendData, StalledTicket } from '../types/telemetry'
+import type { TelemetryConfig, TelemetryData, CategorizedIssue, BoardData, SectorTimes, LeadTimeResult, TrendData, StalledTicket } from '../types/telemetry'
 import { mockTelemetry, mockIssues, mockTiming, mockTrends, mockDevOps } from './mocks'
 import { splitTicket, reassignTicket, deferTicket, handleAction } from './rovoActions'
 import { getProjectContext, getContextSummary, type ProjectContext } from './contextEngine'
@@ -89,11 +88,18 @@ resolver.define('getTelemetryData', async ({ context }: any) => {
     const projectKey = context.extension.project.key as string
     await discoverCustomFields()
     const statusMap = await getProjectStatusMap(projectKey)
-    const sprintData: SprintData = await fetchSprintData(projectKey, userConfig, context)
-    const telemetry: TelemetryData = await calculateTelemetry(sprintData, userConfig, statusMap)
-    const stalledTickets: StalledTicket[] = detectStalledTickets(sprintData.issues, userConfig, statusMap)
+    const boardData: BoardData = await fetchBoardData(projectKey, userConfig, context)
+    const telemetry: TelemetryData = await calculateTelemetry(boardData, userConfig, statusMap)
+    const stalledTickets: StalledTicket[] = detectStalledTickets(boardData.issues, userConfig, statusMap)
     console.log(`[Telemetry] Resolver Success. WIP: ${telemetry.wipCurrent}, Stalled: ${stalledTickets.length}`)
-    return { success: true, data: { ...telemetry, sprintName: sprintData.sprintName, stalledTickets, feed: generateFeed(telemetry, stalledTickets, sprintData.boardType), alertActive: stalledTickets.length > 0 } }
+
+    // Determine appropriate display name for the period
+    let periodName = boardData.boardName
+    if (boardData.boardType === 'scrum' && boardData.sprint) {
+        periodName = boardData.sprint.name
+    }
+
+    return { success: true, data: { ...telemetry, sprintName: periodName, stalledTickets, feed: generateFeed(telemetry, stalledTickets, boardData.boardType), alertActive: stalledTickets.length > 0 } }
   } catch (error: any) {
     console.error('Error fetching telemetry:', error)
     return { success: false, error: error.message || 'Failed to fetch telemetry data' }
@@ -105,12 +111,18 @@ resolver.define('getSprintIssues', async ({ context }: any) => {
     console.log('[ENTRY] getSprintIssues context:', context)
     if (PLATFORM === 'local') { return { success: true, boardType: 'scrum', sprintName: 'Local Board', issues: mockIssues() } }
     const projectKey = context.extension.project.key as string
-    const sprintData: SprintData = await fetchSprintData(projectKey, userConfig, context)
+    const boardData: BoardData = await fetchBoardData(projectKey, userConfig, context)
     const statusMap = await getProjectStatusMap(projectKey)
-    const stalledTickets = detectStalledTickets(sprintData.issues, userConfig, statusMap)
+    const stalledTickets = detectStalledTickets(boardData.issues, userConfig, statusMap)
     const stalledKeys = new Set(stalledTickets.map(t => t.key))
     let columns: Array<{ name: string; statuses: Array<{ name: string }> }> = []
-    try { const boardInfo = await detectBoardType(projectKey); if (boardInfo.boardId) { columns = await getBoardColumns(boardInfo.boardId) } } catch { }
+
+    // Attempt to get board columns if available
+    try {
+        if (boardData.boardId) {
+            columns = await getBoardColumns(boardData.boardId)
+        }
+    } catch { }
 
     // Fallback if no columns found (e.g. failing to fetch board config)
     const useFallback = columns.length === 0
@@ -122,7 +134,7 @@ resolver.define('getSprintIssues', async ({ context }: any) => {
       ]
     }
 
-    const categorizedIssues: CategorizedIssue[] = categorizeIssues(sprintData.issues, statusMap).map(issue => {
+    const categorizedIssues: CategorizedIssue[] = categorizeIssues(boardData.issues, statusMap).map(issue => {
       let colName = mapStatusToColumn(issue.status, columns)
       if (!colName && useFallback) {
         if (issue.statusCategory === 'new') colName = 'To Do'
@@ -136,7 +148,13 @@ resolver.define('getSprintIssues', async ({ context }: any) => {
       }
     })
     const columnNames = columns.map(c => c.name)
-    return { success: true, boardType: sprintData.boardType, sprintName: sprintData.sprintName, issues: categorizedIssues, columns: columnNames }
+
+    let sprintName = boardData.boardName
+    if (boardData.boardType === 'scrum' && boardData.sprint) {
+        sprintName = boardData.sprint.name
+    }
+
+    return { success: true, boardType: boardData.boardType, sprintName, issues: categorizedIssues, columns: columnNames }
   } catch (error: any) { return { success: false, error: error.message } }
 })
 
@@ -160,9 +178,9 @@ resolver.define('getTimingMetrics', async ({ context }: any) => {
     console.log('[ENTRY] getTimingMetrics context:', context)
     if (PLATFORM === 'local') { return mockTiming() }
     const projectKey = context.extension.project.key as string
-    const sprintData: SprintData = await fetchSprintData(projectKey, userConfig, context)
-    const leadTime: LeadTimeResult = calculateLeadTime(sprintData.issues)
-    const issueKeys = sprintData.issues.map(i => i.key)
+    const boardData: BoardData = await fetchBoardData(projectKey, userConfig, context)
+    const leadTime: LeadTimeResult = calculateLeadTime(boardData.issues)
+    const issueKeys = boardData.issues.map(i => i.key)
     const cycleTime: SectorTimes = await calculateCycleTime(issueKeys, context)
     const sectorTimes = evaluateSectorPerformance(cycleTime)
     const hasUnmapped = Boolean((cycleTime as any)['UNMAPPED'])
@@ -215,19 +233,19 @@ resolver.define('getFlowMetrics', async ({ context }: any) => {
     const projectKey = context.extension.project.key as string
     const wipLimit = userConfig.wipLimit || 10
 
-    // Fetch sprint data with graceful error handling
-    let sprintData: SprintData
+    // Fetch board data with graceful error handling
+    let boardData: BoardData
     try {
-      sprintData = await fetchSprintData(projectKey, userConfig, context)
+      boardData = await fetchBoardData(projectKey, userConfig, context)
     } catch (fetchError: any) {
-      console.warn('[FlowMetrics] Sprint fetch failed, returning empty state:', fetchError.message)
+      console.warn('[FlowMetrics] Board data fetch failed, returning empty state:', fetchError.message)
       // Return meaningful empty state rather than error
       return {
         success: true,
         isEmpty: true,
-        message: 'No sprint data available. Create a board with issues to see flow metrics.',
+        message: 'No board data available. Create a board with issues to see flow metrics.',
         distribution: { features: { count: 0, percentage: 0 }, defects: { count: 0, percentage: 0 }, risks: { count: 0, percentage: 0 }, debt: { count: 0, percentage: 0 }, other: { count: 0, percentage: 0 }, total: 0 },
-        velocity: { completed: 0, period: 'No Active Sprint', trend: 'stable', changePercent: 0 },
+        velocity: { completed: 0, period: 'No Active Board', trend: 'stable', changePercent: 0 },
         flowTime: { avgHours: 0, medianHours: 0, p85Hours: 0, minHours: 0, maxHours: 0 },
         flowLoad: { total: 0, byCategory: { features: 0, defects: 0, risks: 0, debt: 0, other: 0 }, limit: wipLimit, loadPercent: 0 },
         typeMapping: {},
@@ -237,14 +255,14 @@ resolver.define('getFlowMetrics', async ({ context }: any) => {
     }
 
     // Handle empty issues gracefully
-    if (!sprintData.issues || sprintData.issues.length === 0) {
-      console.log('[FlowMetrics] No issues in sprint, returning empty state')
+    if (!boardData.issues || boardData.issues.length === 0) {
+      console.log('[FlowMetrics] No issues in board, returning empty state')
       return {
         success: true,
         isEmpty: true,
-        message: 'No issues in the current sprint/board. Add issues to see flow metrics.',
+        message: 'No issues in the current board. Add issues to see flow metrics.',
         distribution: { features: { count: 0, percentage: 0 }, defects: { count: 0, percentage: 0 }, risks: { count: 0, percentage: 0 }, debt: { count: 0, percentage: 0 }, other: { count: 0, percentage: 0 }, total: 0 },
-        velocity: { completed: 0, period: sprintData.sprintName || 'Current Sprint', trend: 'stable', changePercent: 0 },
+        velocity: { completed: 0, period: boardData.sprint?.name || boardData.boardName || 'Current Period', trend: 'stable', changePercent: 0 },
         flowTime: { avgHours: 0, medianHours: 0, p85Hours: 0, minHours: 0, maxHours: 0 },
         flowLoad: { total: 0, byCategory: { features: 0, defects: 0, risks: 0, debt: 0, other: 0 }, limit: wipLimit, loadPercent: 0 },
         typeMapping: {},
@@ -254,10 +272,13 @@ resolver.define('getFlowMetrics', async ({ context }: any) => {
     }
 
     // Calculate all flow metrics
+    // For Kanban/Business, we use the board name as the period
+    const periodName = boardData.sprint?.name || boardData.boardName || 'Current Period'
+
     const flowMetrics = calculateAllFlowMetrics(
-      sprintData.issues,
+      boardData.issues,
       [], // Previous issues - would need separate fetch for trend comparison
-      sprintData.sprintName,
+      periodName,
       wipLimit
     )
 
@@ -293,8 +314,8 @@ resolver.define('getDevOpsStatus', async ({ context }: any) => {
     const projectKey = context.extension.project.key as string
     const devOpsStatus = await checkProjectDevOpsStatus(projectKey, context)
     if (!devOpsStatus.enabled) return { success: true, enabled: false, source: null, noCommitIssues: [] }
-    const sprintData: SprintData = await fetchSprintData(projectKey, userConfig)
-    const noCommitIssues = await detectNoCommitIssues(sprintData.issues)
+    const boardData: BoardData = await fetchBoardData(projectKey, userConfig)
+    const noCommitIssues = await detectNoCommitIssues(boardData.issues)
     return { success: true, enabled: true, source: devOpsStatus.source, noCommitIssues }
   } catch (error: any) {
     console.error('Error fetching DevOps status:', error)
@@ -382,7 +403,7 @@ resolver.define('getDiagnosticsDetails', async ({ context }: any) => {
     } catch (e: any) { filter = { error: e?.message } }
     const fieldsSnapshot = getFieldCacheSnapshot() || (await discoverCustomFields())
     let sprint: any = null
-    try { const sd = await fetchSprintData(projectKey, userConfig, context); sprint = { id: sd.sprintId, name: sd.sprintName, state: sd.sprintState, boardType: sd.boardType } } catch (e: any) { sprint = { error: e?.message } }
+    try { const sd = await fetchBoardData(projectKey, userConfig, context); sprint = { id: sd.sprint?.id, name: sd.sprint?.name || sd.boardName, state: sd.sprint?.state, boardType: sd.boardType } } catch (e: any) { sprint = { error: e?.message } }
     const scopes = getScopes()
     let statuses: any = null
     try { statuses = await getProjectStatusMap(projectKey) } catch { }
@@ -401,26 +422,16 @@ resolver.define('getAdvancedAnalytics', async ({ context }: any) => {
     console.log('[ENTRY] getAdvancedAnalytics context:', context)
     const projectKey = context?.extension?.project?.key as string
 
-    // Fetch sprint data
-    const sprintData = await fetchSprintData(projectKey, userConfig, context)
-    const issues = sprintData.issues || []
+    // Fetch board data
+    const boardData = await fetchBoardData(projectKey, userConfig, context)
+    const issues = boardData.issues || []
 
-    // Determine sprint dates (simplified - use current sprint window)
+    // Determine sprint dates
     let sprintStartDate: Date | null = null
     let sprintEndDate: Date | null = null
 
-    // Try to get sprint info from the first issue that has sprint data
-    for (const issue of issues) {
-      const sprintField = (issue.fields as any).customfield_10020
-      if (Array.isArray(sprintField) && sprintField.length > 0) {
-        const activeSprint = sprintField.find((s: any) => s.state === 'active')
-        if (activeSprint) {
-          if (activeSprint.startDate) sprintStartDate = new Date(activeSprint.startDate)
-          if (activeSprint.endDate) sprintEndDate = new Date(activeSprint.endDate)
-          break
-        }
-      }
-    }
+    if (boardData.sprint?.startDate) sprintStartDate = new Date(boardData.sprint.startDate)
+    if (boardData.sprint?.endDate) sprintEndDate = new Date(boardData.sprint.endDate)
 
     // Get field cache for story points field name
     const fields = await discoverCustomFields()
@@ -447,8 +458,8 @@ resolver.define('getAdvancedAnalytics', async ({ context }: any) => {
 
     return {
       success: true,
-      boardType: sprintData.boardType,
-      sprintName: sprintData.sprintName,
+      boardType: boardData.boardType,
+      sprintName: boardData.sprint?.name || boardData.boardName,
       ...analytics
     }
   } catch (error: any) {
@@ -461,10 +472,10 @@ resolver.define('getCycleHints', async ({ context }: any) => {
   try {
     const projectKey = context?.extension?.project?.key as string
     const statusMap = await getProjectStatusMap(projectKey)
-    const sprintData: SprintData = await fetchSprintData(projectKey, userConfig, context)
-    const boardType = sprintData.boardType
+    const boardData: BoardData = await fetchBoardData(projectKey, userConfig, context)
+    const boardType = boardData.boardType
     const byType: Record<string, { total: number; count: number }> = {}
-    const issues = sprintData.issues || []
+    const issues = boardData.issues || []
     for (const issue of issues.slice(0, 50)) {
       const typeName = (issue.fields.issuetype?.name || '').toLowerCase()
       if (!typeName) continue
@@ -504,11 +515,12 @@ resolver.define('chatWithRovo', async ({ payload, context }: any) => {
     const projectKey = context?.extension?.project?.key
     let data: any = {}
     if (projectKey && PLATFORM !== 'local') {
-      const sprintData = await fetchSprintData(projectKey, userConfig, context)
+      const boardData = await fetchBoardData(projectKey, userConfig, context)
       const statusMap = await getProjectStatusMap(projectKey)
-      const telemetry = await calculateTelemetry(sprintData, userConfig, statusMap)
+      const telemetry = await calculateTelemetry(boardData, userConfig, statusMap)
       const trends = await calculateWipTrend(projectKey)
-      data = { telemetry, trends, sprintName: sprintData.sprintName, issues: sprintData.issues, boardType: sprintData.boardType }
+      const sprintName = boardData.sprint?.name || boardData.boardName
+      data = { telemetry, trends, sprintName, issues: boardData.issues, boardType: boardData.boardType }
     } else {
       data = { telemetry: mockTelemetry(), trends: { direction: 'down', change: 12 }, sprintName: 'Local Sprint', issues: [], boardType: 'scrum' }
     }

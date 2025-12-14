@@ -13,7 +13,7 @@ describe('board selection', () => {
     const info = await utils.detectBoardType('TEST')
     expect(info.boardId).toBe(11)
     expect(info.boardName).toBe('A Board')
-    expect(info.type).toBe('scrum')
+    expect(info.boardType).toBe('scrum')
   })
 })
 
