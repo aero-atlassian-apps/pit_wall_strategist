@@ -141,7 +141,7 @@ interface Props {
 export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, onRefresh, boardType = 'scrum', projectContext }: Props) {
   const locale = (window as any).__PWS_LOCALE || 'en'
   const isKanban = boardType === 'kanban'
-  const [insight, setInsight] = useState<string>('Analyzing telemetry data...')
+  const [insight, setInsight] = useState<string>(t('analyzingTelemetry', locale))
   const [loading, setLoading] = useState(false)
 
   // Generate an initial insight based on feed/context
@@ -151,29 +151,27 @@ export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, on
       const warning = feed.filter(f => f.type === 'warning').pop()
 
       if (critical) {
-          setInsight(`CRITICAL ALERT: ${critical.msg}\nImmediate intervention recommended. Check "Box Box" for details.`)
+          setInsight(`${t('criticalAlert', locale)} ${critical.msg}\n${t('immediateIntervention', locale)}`)
       } else if (warning) {
-          setInsight(`WARNING: ${warning.msg}\nConsider adjusting strategy to avoid potential stalls.`)
+          setInsight(`${t('warning', locale)} ${warning.msg}\n${t('adjustStrategy', locale)}`)
       } else {
-          setInsight(isKanban
-            ? "Flow is optimal. Monitor Cycle Time for anomalies. Current WIP levels are within limits."
-            : "Sprint pace is good. Velocity is tracking well against the target.")
+          setInsight(isKanban ? t('flowOptimalHint', locale) : t('sprintPaceHint', locale))
       }
   }, [feed, isKanban])
 
   const handleAction = async (prompt: string, label: string) => {
       setLoading(true)
-      setInsight(`Analyzing ${label}...`)
+      setInsight(`${t('analyzing', locale)} ${label}...`)
 
       try {
         const result = await invoke('chatWithRovo', { message: prompt }) as any
         if (result && result.success) {
             setInsight(result.answer)
         } else {
-            setInsight(`Failed to analyze: ${result?.error || 'Unknown error'}`)
+            setInsight(`${t('failedToAnalyze', locale)} ${result?.error || t('unknown', locale)}`)
         }
       } catch (e) {
-        setInsight("Telemetry link failed. Please retry.")
+        setInsight(t('telemetryLinkFailed', locale))
       } finally {
         setLoading(false)
       }
@@ -181,8 +179,8 @@ export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, on
 
   return (
     <F1Card
-      title="Strategy Assistant"
-      badge="AI"
+      title={t('strategyAssistant', locale)}
+      badge={t('ai', locale)}
       badgeVariant="success"
       fullHeight
       glowColor="purple"
@@ -195,7 +193,7 @@ export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, on
       <AssistantContainer>
         <InsightPanel>
             <InsightHeader>
-                {loading ? 'CALCULATING...' : 'STRATEGIC INSIGHT'}
+                {loading ? t('calculating', locale) : t('strategicInsight', locale)}
             </InsightHeader>
             <InsightText>
                 {insight}
@@ -205,47 +203,47 @@ export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, on
         <ActionGrid>
           {isKanban ? (
             <>
-              <ActionButton $variant="primary" onClick={() => handleAction("Analyze Cycle Time", "Cycle Time")}>
-                <ActionTitle>Analyze Flow</ActionTitle>
-                <ActionDesc>Check Cycle Time & Lap Pace</ActionDesc>
+              <ActionButton $variant="primary" onClick={() => handleAction(t('analyzeCycleTime', locale), t('cycleTime', locale))}>
+                <ActionTitle>{t('analyzeFlow', locale)}</ActionTitle>
+                <ActionDesc>{t('checkCycleLap', locale)}</ActionDesc>
               </ActionButton>
-              <ActionButton onClick={() => handleAction("Show WIP Aging", "WIP Aging")}>
-                <ActionTitle>Tire Deg Check</ActionTitle>
-                <ActionDesc>Identify aging WIP items</ActionDesc>
+              <ActionButton onClick={() => handleAction(t('showWipAging', locale), t('wipAging', locale))}>
+                <ActionTitle>{t('tireDegCheck', locale)}</ActionTitle>
+                <ActionDesc>{t('identifyAgingWip', locale)}</ActionDesc>
               </ActionButton>
-              <ActionButton onClick={() => handleAction("Check Throughput Trend", "Throughput")}>
-                <ActionTitle>Flow Rate</ActionTitle>
-                <ActionDesc>Verify delivery throughput</ActionDesc>
+              <ActionButton onClick={() => handleAction(t('checkThroughput', locale), t('throughput', locale))}>
+                <ActionTitle>{t('flowRate', locale)}</ActionTitle>
+                <ActionDesc>{t('verifyThroughput', locale)}</ActionDesc>
               </ActionButton>
-              <ActionButton $variant="critical" onClick={() => handleAction("Identify Blocked Items", "Blockers")}>
-                <ActionTitle>Red Flags</ActionTitle>
-                <ActionDesc>Find blocked or stalled work</ActionDesc>
+              <ActionButton $variant="critical" onClick={() => handleAction(t('identifyBlocked', locale), t('blockers', locale))}>
+                <ActionTitle>{t('redFlags', locale)}</ActionTitle>
+                <ActionDesc>{t('findBlockedOrStalled', locale)}</ActionDesc>
               </ActionButton>
             </>
           ) : (
              <>
-              <ActionButton $variant="primary" onClick={() => handleAction("Analyze Sprint Velocity", "Velocity")}>
-                <ActionTitle>Analyze Pace</ActionTitle>
-                <ActionDesc>Check velocity vs target</ActionDesc>
+              <ActionButton $variant="primary" onClick={() => handleAction(t('analyzeSprintVelocity', locale), t('velocity', locale))}>
+                <ActionTitle>{t('analyzePace', locale)}</ActionTitle>
+                <ActionDesc>{t('checkVelocityVsTarget', locale)}</ActionDesc>
               </ActionButton>
-              <ActionButton onClick={() => handleAction("Identify Bottlenecks", "Bottlenecks")}>
-                <ActionTitle>Traffic Report</ActionTitle>
-                <ActionDesc>Locate process bottlenecks</ActionDesc>
+              <ActionButton onClick={() => handleAction(t('identifyBottlenecks', locale), t('bottlenecks', locale))}>
+                <ActionTitle>{t('trafficReport', locale)}</ActionTitle>
+                <ActionDesc>{t('locateBottlenecks', locale)}</ActionDesc>
               </ActionButton>
-              <ActionButton onClick={() => handleAction("Predict Completion Date", "Predictions")}>
-                <ActionTitle>Race Prediction</ActionTitle>
-                <ActionDesc>Forecast completion</ActionDesc>
+              <ActionButton onClick={() => handleAction(t('predictCompletion', locale), t('predictions', locale))}>
+                <ActionTitle>{t('racePrediction', locale)}</ActionTitle>
+                <ActionDesc>{t('forecastCompletion', locale)}</ActionDesc>
               </ActionButton>
-              <ActionButton onClick={() => handleAction("Show Team Health", "Team Health")}>
-                <ActionTitle>Pit Crew Status</ActionTitle>
-                <ActionDesc>Check team load & burnout</ActionDesc>
+              <ActionButton onClick={() => handleAction(t('showTeamHealth', locale), t('teamHealth', locale))}>
+                <ActionTitle>{t('pitCrewStatus', locale)}</ActionTitle>
+                <ActionDesc>{t('checkTeamLoadBurnout', locale)}</ActionDesc>
               </ActionButton>
             </>
           )}
         </ActionGrid>
 
         <BoxBoxButton $active={alertActive} onClick={alertActive ? onBoxBox : undefined}>
-          {alertActive ? "⚠️ BOX BOX (CRITICAL ALERTS)" : "NO CRITICAL ALERTS"}
+          {alertActive ? t('boxboxCritical', locale) : t('noCriticalAlerts', locale)}
         </BoxBoxButton>
 
       </AssistantContainer>

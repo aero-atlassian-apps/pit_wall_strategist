@@ -126,8 +126,7 @@ export default function TerminologyModal({ open, onClose }: Props) {
                         ))}
                     </TermsTable>
                     <div style={{ marginTop: 24, padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 8, fontSize: 11, color: '#94A3B8', lineHeight: 1.5 }}>
-                        <strong>💡 Pro Tip:</strong> The Pit Wall interface is designed to make Strategy (Management) feel like Race Control.
-                        Use this guide to translate between the high-speed world of F1 and your Sprint delivery metrics.
+                        <strong>💡 {t('proTipTitle', locale)}</strong> {t('proTipBody', locale)}
                     </div>
                 </Body>
             </Modal>

@@ -266,15 +266,15 @@ function TrackMap({ issues = [], boardType = 'scrum', columns = [], locale = 'en
           <>
             <TooltipKey>
               {hoveredIssue.key}
-              {hoveredIssue.isStalled && <TooltipBadge $type="stalled">Stalled</TooltipBadge>}
+              {hoveredIssue.isStalled && <TooltipBadge $type="stalled">{t('stalled', locale)}</TooltipBadge>}
             </TooltipKey>
             <TooltipSummary>
-              {hoveredIssue.summary?.substring(0, 60) || 'No summary'}
+              {hoveredIssue.summary?.substring(0, 60) || t('noSummary', locale)}
               {(hoveredIssue.summary?.length || 0) > 60 ? '...' : ''}
             </TooltipSummary>
             <TooltipMeta>
-              <span>👤 {hoveredIssue.assignee || 'Unassigned'}</span>
-              <span>📍 {hoveredIssue.status || hoveredIssue.column || 'Unknown'}</span>
+              <span>👤 {hoveredIssue.assignee || t('unassigned', locale)}</span>
+              <span>📍 {hoveredIssue.status || hoveredIssue.column || t('unknown', locale)}</span>
             </TooltipMeta>
           </>
         )}
@@ -284,4 +284,3 @@ function TrackMap({ issues = [], boardType = 'scrum', columns = [], locale = 'en
 }
 
 export default TrackMap
-

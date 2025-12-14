@@ -170,10 +170,10 @@ function InnerApp() {
       <Header>
         <Logo>
           <LogoIcon>🏎️</LogoIcon>
-          <LogoText>Pit Wall Strategist</LogoText>
+          <LogoText>{t('appTitle', locale)}</LogoText>
         </Logo>
         <HeaderRight>
-          <StatusBadge status={displayStatus}>{boardType === 'kanban' ? t('flow', locale) : t('sprint', locale)}: {displayStatus}</StatusBadge>
+          <StatusBadge status={displayStatus}>{boardType === 'kanban' ? t('flow', locale) : t('sprint', locale)}: {t(displayStatus.toLowerCase(), locale) || displayStatus}</StatusBadge>
           {timingMetrics?.hasUnmapped && (<span title={t('unmappedTransitions', locale)} style={{ marginLeft: 8, fontFamily: 'monospace', fontSize: 12, color: '#f59e0b' }}>⚠</span>)}
 
           <SettingsButton $active={dictionaryOpen} onClick={() => setDictionaryOpen(!dictionaryOpen)} title={t('glossary', locale)} style={{ marginRight: 8 }}>📖</SettingsButton>
@@ -181,7 +181,7 @@ function InnerApp() {
           <SettingsButton onClick={refreshAll} title={t('refreshAll', locale)}>⟳</SettingsButton>
         </HeaderRight>
       </Header>
-      {error && (<Notice>{error.includes('Unauthorized') || error.includes('permission') ? 'Insufficient permissions to read issues. Ensure app has Browse Projects and issue security visibility.' : error}{perms ? ` | UserBrowse: ${perms.userBrowse ? 'yes' : 'no'} | AppBrowse: ${perms.appBrowse ? 'yes' : 'no'} | SprintField: ${perms.hasSprintField ? 'yes' : 'no'}` : ''}</Notice>)}
+      {error && (<Notice>{error.includes('Unauthorized') || error.includes('permission') ? t('insufficientPermissions', locale) : error}{perms ? ` | ${t('userBrowse', locale)}: ${perms.userBrowse ? t('yes', locale) : t('no', locale)} | ${t('appBrowse', locale)}: ${perms.appBrowse ? t('yes', locale) : t('no', locale)} | ${t('sprintField', locale)}: ${perms.hasSprintField ? t('yes', locale) : t('no', locale)}` : ''}</Notice>)}
       {settingsOpen ? (
         <SettingsOverlay>
           <SettingsPanel config={config as any} boardType={boardType} boardName={boardName || 'Board'} onSave={(newConfig: any) => {
@@ -246,8 +246,8 @@ function InnerApp() {
             {/* Systems Status Strip */}
             <div style={{ marginTop: 'auto', paddingTop: 8, borderTop: '1px solid #334155' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#94A3B8', fontFamily: 'monospace' }}>
-                <span>SYSTEMS: {healthData?.platform ? 'ONLINE' : 'CHECKING...'}</span>
-                <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setDiagnosticsOpen(true)}>DIAGNOSTICS</span>
+                <span>{t('systems', locale)}: {healthData?.platform ? t('online', locale) : t('checking', locale)}</span>
+                <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setDiagnosticsOpen(true)}>{t('diagnostics', locale)}</span>
               </div>
             </div>
           </RaceControlColumn>
