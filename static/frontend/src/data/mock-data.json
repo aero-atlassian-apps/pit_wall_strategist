@@ -1,0 +1,20 @@
+{
+  "sprintStatus": "CRITICAL",
+  "velocityDelta": -12,
+  "wipLoad": 110,
+  "wipLimit": 8,
+  "wipCurrent": 9,
+  "teamBurnout": { "sarah": 95, "mike": 40, "jess": 88 },
+  "feed": [
+    { "time": "09:00", "msg": "Green Flag. Sprint Started.", "type": "info" },
+    { "time": "10:30", "msg": "Sector 1 Clear.", "type": "success" },
+    { "time": "11:15", "msg": "Velocity nominal. All systems go.", "type": "info" },
+    { "time": "12:00", "msg": "TICKET-421 entered Sector 2.", "type": "info" },
+    { "time": "13:45", "msg": "WARN: TICKET-422 High Drag Detected.", "type": "warning" },
+    { "time": "14:00", "msg": "CRITICAL: TICKET-422 Stalled > 24h.", "type": "critical" }
+  ],
+  "stalledTickets": [
+    { "key": "TICKET-422", "summary": "Implement OAuth2 Backend", "assignee": "Sarah", "reason": "Blocked by API Spec Undefined", "latestComment": "I am currently blocked waiting for the backend team to finalize the API spec." }
+  ],
+  "alertActive": true
+}

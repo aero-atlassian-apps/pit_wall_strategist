@@ -1,0 +1,21 @@
+Summary,Issue Type,Status,Story Points,Priority,Assignee,Parent,Description,Sprint,Created,Updated,Resolution,Resolved
+Implement user authentication flow,Story,Done,5,High,John Smith,SOFT-34,Build login and registration pages with OAuth support,Sprint 1,28/Nov/24 9:00 AM,02/Dec/24 5:30 PM,Done,02/Dec/24 5:30 PM
+Setup CI/CD pipeline,Story,Done,3,Medium,Sarah Connor,SOFT-34,Configure GitHub Actions for automated testing and deployment,Sprint 1,28/Nov/24 10:00 AM,01/Dec/24 4:00 PM,Done,01/Dec/24 4:00 PM
+Database schema migration,Task,Done,2,High,Mike Johnson,,Migrate user tables to new schema,Sprint 1,29/Nov/24 11:00 AM,03/Dec/24 2:00 PM,Done,03/Dec/24 2:00 PM
+Fix login redirect bug,Bug,Done,1,Critical,John Smith,SOFT-34,Users redirected to wrong page after login,Sprint 1,30/Nov/24 9:30 AM,04/Dec/24 11:00 AM,Done,04/Dec/24 11:00 AM
+Create API documentation,Story,In Progress,3,Medium,Sarah Connor,,Document all REST endpoints with Swagger,Sprint 1,01/Dec/24 2:00 PM,12/Dec/24 10:00 AM,,
+Implement password reset,Story,In Progress,3,High,John Smith,SOFT-34,Allow users to reset password via email,Sprint 1,29/Nov/24 3:00 PM,30/Nov/24 9:00 AM,,
+Performance optimization,Task,In Progress,5,Critical,Mike Johnson,,STALLED - Optimize database queries for dashboard,Sprint 1,28/Nov/24 8:00 AM,29/Nov/24 10:00 AM,,
+Fix memory leak in worker,Bug,In Progress,2,Critical,Sarah Connor,,STALLED - Worker process consuming too much memory,Sprint 1,27/Nov/24 11:00 AM,28/Nov/24 2:00 PM,,
+Add unit tests for auth module,Task,To Do,3,Low,John Smith,SOFT-34,Increase test coverage for authentication,Sprint 1,06/Dec/24 9:00 AM,06/Dec/24 9:00 AM,,
+Implement user profile page,Story,To Do,5,Medium,Mike Johnson,SOFT-35,Build user profile editing functionality,Sprint 2,08/Dec/24 10:00 AM,08/Dec/24 10:00 AM,,
+Add notification system,Story,To Do,8,High,John Smith,SOFT-35,Real-time notifications for user events,Sprint 2,09/Dec/24 11:00 AM,09/Dec/24 11:00 AM,,
+Setup monitoring dashboards,Task,To Do,3,Low,Sarah Connor,,Create Grafana dashboards for metrics,Sprint 2,10/Dec/24 2:00 PM,10/Dec/24 2:00 PM,,
+Urgent hotfix for checkout,Bug,To Do,2,Critical,Mike Johnson,,SCOPE CREEP - Payment failing for some users,Sprint 1,12/Dec/24 8:00 AM,12/Dec/24 8:00 AM,,
+Add analytics tracking,Task,To Do,3,Medium,John Smith,,SCOPE CREEP - Added mid-sprint by PM,Sprint 1,11/Dec/24 3:00 PM,11/Dec/24 3:00 PM,,
+Investigate slow API,Spike,In Progress,2,High,Sarah Connor,,Research performance bottleneck in API,Sprint 1,02/Dec/24 9:00 AM,10/Dec/24 4:00 PM,,
+Tech debt cleanup,Task,To Do,5,Low,Mike Johnson,,TECH DEBT - Refactor legacy auth code,Sprint 2,10/Dec/24 10:00 AM,10/Dec/24 10:00 AM,,
+Implement search functionality,Story,To Do,8,Medium,John Smith,,Full-text search across all content,Sprint 3,10/Dec/24 11:00 AM,10/Dec/24 11:00 AM,,
+Mobile responsive design,Story,To Do,5,High,Sarah Connor,,Ensure all pages work on mobile devices,Sprint 3,11/Dec/24 9:00 AM,11/Dec/24 9:00 AM,,
+Security audit fixes,Task,To Do,5,Critical,Mike Johnson,,Address findings from security review,Sprint 3,12/Dec/24 10:00 AM,12/Dec/24 10:00 AM,,
+API rate limiting,Story,To Do,3,Medium,John Smith,,Implement rate limiting for public APIs,Sprint 4,12/Dec/24 2:00 PM,12/Dec/24 2:00 PM,,

@@ -1,0 +1,15 @@
+Summary,Issue Type,Status,Story Points,Priority,Assignee,Description,Created,Updated,Resolution,Resolved
+Office supplies Q4 order,Task,Purchased,2,Low,Alice Brown,Quarterly office supplies order for team,15/Nov/24 9:00 AM,01/Dec/24 3:00 PM,Done,01/Dec/24 3:00 PM
+New laptop for developer hire,Task,Purchased,5,High,Bob Wilson,MacBook Pro 16 for new senior developer,20/Nov/24 10:00 AM,05/Dec/24 2:00 PM,Done,05/Dec/24 2:00 PM
+Server rack purchase,Task,Purchased,8,Critical,Alice Brown,On-premise server infrastructure,18/Nov/24 11:00 AM,03/Dec/24 4:00 PM,Done,03/Dec/24 4:00 PM
+Cloud infrastructure upgrade,Task,Approved,8,Critical,Charlie Davis,AWS infrastructure capacity increase,01/Dec/24 9:00 AM,10/Dec/24 11:00 AM,,
+Software license renewal,Task,Approved,3,High,Alice Brown,Annual JetBrains license renewal,03/Dec/24 2:00 PM,11/Dec/24 10:00 AM,,
+Conference room equipment,Task,In Review,5,Medium,Bob Wilson,STALLED - AV equipment for new meeting room,25/Nov/24 10:00 AM,28/Nov/24 3:00 PM,,
+Training budget allocation,Task,In Review,3,Medium,Charlie Davis,Q1 training budget for engineering,08/Dec/24 11:00 AM,12/Dec/24 9:00 AM,,
+Contractor engagement,Task,In Review,8,High,Alice Brown,External security consultant contract,09/Dec/24 9:00 AM,12/Dec/24 2:00 PM,,
+Standing desk order,Task,Requested,2,Low,Bob Wilson,Ergonomic standing desks for team,10/Dec/24 10:00 AM,10/Dec/24 10:00 AM,,
+Marketing software subscription,Task,Requested,3,Medium,Charlie Davis,HubSpot annual subscription,11/Dec/24 11:00 AM,11/Dec/24 11:00 AM,,
+Hardware refresh program,Task,Requested,13,Critical,Alice Brown,Replace aging development machines,12/Dec/24 8:00 AM,12/Dec/24 8:00 AM,,
+Emergency laptop replacement,Task,Requested,5,Critical,Bob Wilson,Urgent replacement for broken device,12/Dec/24 9:00 AM,12/Dec/24 9:00 AM,,
+Rejected vendor proposal,Task,Rejected,5,Medium,Charlie Davis,Alternative cloud provider proposal,25/Nov/24 2:00 PM,02/Dec/24 4:00 PM,Rejected,02/Dec/24 4:00 PM
+Expensive printing service,Task,Rejected,8,Low,Alice Brown,Premium printing service contract,01/Dec/24 10:00 AM,08/Dec/24 11:00 AM,Rejected,08/Dec/24 11:00 AM

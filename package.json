@@ -1,0 +1,48 @@
+{
+  "name": "pit-wall-strategist-ts",
+  "version": "1.0.0",
+  "description": "F1-themed Rovo-powered Race Engineer for Jira - TypeScript version",
+  "main": "src/resolvers/index.ts",
+  "scripts": {
+    "login": "forge login",
+    "lint": "forge lint",
+    "deploy": "forge deploy",
+    "install:app": "forge install",
+    "install:app-upgrade": "forge install --upgrade",
+    "uninstall:app": "forge uninstall",
+    "eligibility:check": "forge eligibility",
+    "tunnel": "forge tunnel",
+    "logs": "forge logs",
+    "set:platform:local": "forge variables set PLATFORM local",
+    "set:platform:atlassian": "forge variables set PLATFORM atlassian",
+    "test": "vitest",
+    "test:unit": "vitest --dir tests/unit --coverage",
+    "test:integration": "vitest --dir tests/integration",
+    "test:e2e": "playwright test",
+    "deploy:full": "cd static/frontend && npm run build:atlassian && cd ../.. && forge deploy && forge install --upgrade"
+  },
+  "dependencies": {
+    "@forge/api": "^3.0.0",
+    "@forge/resolver": "^1.6.0"
+  },
+  "devDependencies": {
+    "@forge/cli": "^12.11.0",
+    "@types/node": "^20.11.30",
+    "@vitest/coverage-v8": "^2.1.9",
+    "playwright": "^1.48.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "atlassian",
+    "forge",
+    "jira",
+    "rovo",
+    "f1",
+    "codegeist"
+  ],
+  "license": "MIT"
+}

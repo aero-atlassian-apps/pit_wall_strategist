@@ -1,0 +1,96 @@
+/* Forge CSP-safe base CSS to ensure layout and fonts without inline styles */
+:root {
+  --bg-main: #0F172A;
+  --bg-card: #1E293B;
+  --border: #334155;
+  --text-primary: #F8FAFC;
+  --text-muted: #94A3B8;
+  --red-alert: #FF0033;
+  --purple: #BF5AF2;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure main grid respects viewport height in case styled injection is delayed */
+main {
+  min-height: calc(100vh - 73px);
+}
+
+/* Header */
+.app-container { width: 100%; height: 100vh; background-color: var(--bg-main); overflow: hidden }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-main) 100%) }
+.logo { display: flex; align-items: center; gap: 16px }
+.logo-icon { width: 40px; height: 40px; border-radius: 8px; display:flex; align-items:center; justify-content:center; font-size:20px; background: linear-gradient(135deg, var(--red-alert), var(--purple)) }
+.logo-text { font-family: 'Roboto Mono', 'JetBrains Mono', 'Courier New', monospace; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--text-primary) }
+.header-right { display:flex; align-items:center; gap:16px }
+.status-badge { font-family: 'Roboto Mono', 'JetBrains Mono', 'Courier New', monospace; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px; padding:4px 12px; border-radius:4px; background-color:#39FF14; color:#fff }
+.settings-button { width:36px; height:36px; border:1px solid var(--border); border-radius:4px; background: transparent; color: var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px }
+.settings-overlay { padding:24px; max-width:500px; margin:0 auto; height:calc(100vh - 73px); overflow-y:auto }
+
+/* Main grid */
+.dashboard-layout { display:grid; grid-template-columns:300px 1fr 400px; gap:12px; height:calc(100vh - 73px); padding:12px; overflow:hidden }
+.panel-left { display:flex; flex-direction:column; gap:16px; overflow:hidden }
+.panel-center { display:flex; flex-direction:column; overflow:hidden }
+.panel-right { display:flex; flex-direction:column; gap:16px; overflow:hidden }
+
+/* Telemetry and trends */
+.telemetry-col { display:flex; flex-direction:column; gap:16px; height:100%; overflow:auto }
+.trend-row { display:flex; gap:16px; padding:0 8px }
+.trend-col { flex:1 }
+
+/* Race control */
+.racecontrol-col { display:flex; flex-direction:column; gap:16px; height:100%; overflow:auto }
+
+/* Utility */
+.mt-auto { margin-top:auto }
+.mt-sm { margin-top:8px }
+.p-md { padding:16px }
+.center-vert { display:flex; flex-direction:column; justify-content:center }
+.legend-row { display:flex; gap:16px; flex-wrap:wrap }
+
+/* Fuel Load progress bars */
+.bar { width:100%; height:8px; background: var(--bg-main); border-radius:4px; overflow:hidden }
+.bar__fill { height:100%; border-radius:4px; transition: width .5s ease-out }
+.bar__fill--critical { background: var(--red-alert) }
+.bar__fill--warning { background: #F4D03F }
+.bar__fill--ok { background: #39FF14 }
+
+/* Race Control feed */
+.feed { display:flex; flex-direction:column; height:100% }
+.feed-scroll { flex:1; overflow-y:auto; padding-right:6px }
+.feed-item { display:flex; gap:8px; padding:4px 0; border-bottom:1px solid rgba(51,65,85,.13) }
+.feed-time { font-family: monospace; font-size:10px; color: var(--text-muted) }
+.feed-msg { font-family: monospace; font-size:11px }
+.feed-msg--critical { color: var(--red-alert) }
+.feed-msg--warning { color: #F4D03F }
+.feed-msg--success { color: #39FF14 }
+.feed-msg--info { color: var(--text-primary) }
+
+/* Track map */
+.track-card { display:flex; flex-direction:column; height:100%; gap:16px }
+.sectors { flex:1; display:flex; flex-direction:column; justify-content:center; gap:24px; padding:24px }
+.sector { display:flex; align-items:center; gap:16px }
+.sector-label { width:100px; font-family: monospace; font-size:10px; color: var(--text-muted); text-transform: uppercase }
+.sector-sublabel { font-size:8px; opacity:0.7 }
+.lane { flex:1; height:40px; border-radius:20px; background: var(--border); display:flex; align-items:center; padding:0 16px }
+.lane-dots { display:flex; gap:8px }
+.lane-dot { width:14px; height:14px; border-radius:50%; background: var(--text-primary); border:2px solid var(--purple) }
+.lane-dot--stalled { background: var(--red-alert); border-color: var(--red-alert) }
+.track-stats { display:flex; justify-content:space-around; padding:16px }
+.stat { text-align:center }
+.stat-value { font-family: monospace; font-size:24px; font-weight:700 }
+.stat-label { font-family: monospace; font-size:9px; color: var(--text-muted); text-transform: uppercase; margin-top:4px }
+.c-purple { color: var(--purple) }
+.c-yellow { color: var(--yellow-flag, #F4D03F) }
+.c-green { color: #39FF14 }

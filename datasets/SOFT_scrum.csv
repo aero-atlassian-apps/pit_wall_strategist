@@ -1,0 +1,23 @@
+Summary,Issue Type,Status,Story Points,Priority,Assignee,Parent,Description,Sprint,Created,Updated,Resolution,Resolved
+Authentication Epic,Epic,In Progress,,,John Smith,,Epic for all authentication features,Sprint 1,2024-11-25,2024-12-12,,
+Implement user authentication flow,Story,Done,5,High,John Smith,SOFT-1,Build login and registration pages with OAuth support,Sprint 1,2024-11-28,2024-12-02,Done,2024-12-02
+Setup CI/CD pipeline,Story,Done,3,Medium,Sarah Connor,SOFT-1,Configure GitHub Actions for automated testing and deployment,Sprint 1,2024-11-28,2024-12-01,Done,2024-12-01
+Database schema migration,Task,Done,2,High,Mike Johnson,,Migrate user tables to new schema,Sprint 1,2024-11-29,2024-12-03,Done,2024-12-03
+Fix login redirect bug,Bug,Done,1,Critical,John Smith,SOFT-1,Users redirected to wrong page after login,Sprint 1,2024-11-30,2024-12-04,Done,2024-12-04
+Create API documentation,Story,In Progress,3,Medium,Sarah Connor,,Document all REST endpoints with Swagger,Sprint 1,2024-12-01,2024-12-12,,
+Implement password reset,Story,In Progress,3,High,John Smith,SOFT-1,Allow users to reset password via email,Sprint 1,2024-11-29,2024-11-30,,
+Performance optimization,Task,In Progress,5,Critical,Mike Johnson,,STALLED - Optimize database queries for dashboard,Sprint 1,2024-11-28,2024-11-29,,
+Fix memory leak in worker,Bug,In Progress,2,Critical,Sarah Connor,,STALLED - Worker process consuming too much memory,Sprint 1,2024-11-27,2024-11-28,,
+Add unit tests for auth module,Task,To Do,3,Low,John Smith,SOFT-1,Increase test coverage for authentication,Sprint 1,2024-12-06,2024-12-06,,
+Payment Epic,Epic,To Do,,,Sarah Connor,,Epic for payment processing features,Sprint 2,2024-12-08,2024-12-08,,
+Implement user profile page,Story,To Do,5,Medium,Mike Johnson,SOFT-11,Build user profile editing functionality,Sprint 2,2024-12-08,2024-12-08,,
+Add notification system,Story,To Do,8,High,John Smith,SOFT-11,Real-time notifications for user events,Sprint 2,2024-12-09,2024-12-09,,
+Setup monitoring dashboards,Task,To Do,3,Low,Sarah Connor,,Create Grafana dashboards for metrics,Sprint 2,2024-12-10,2024-12-10,,
+Urgent hotfix for checkout,Bug,To Do,2,Critical,Mike Johnson,,SCOPE CREEP - Payment failing for some users,Sprint 1,2024-12-12,2024-12-12,,
+Add analytics tracking,Task,To Do,3,Medium,John Smith,,SCOPE CREEP - Added mid-sprint by PM,Sprint 1,2024-12-11,2024-12-11,,
+Investigate slow API,Spike,In Progress,2,High,Sarah Connor,,Research performance bottleneck in API,Sprint 1,2024-12-02,2024-12-10,,
+Tech debt cleanup,Task,To Do,5,Low,Mike Johnson,,TECH DEBT - Refactor legacy auth code,Sprint 2,2024-12-10,2024-12-10,,
+Implement search functionality,Story,To Do,8,Medium,John Smith,,Full-text search across all content,Sprint 3,2024-12-10,2024-12-10,,
+Mobile responsive design,Story,To Do,5,High,Sarah Connor,,Ensure all pages work on mobile devices,Sprint 3,2024-12-11,2024-12-11,,
+Security audit fixes,Task,To Do,5,Critical,Mike Johnson,,Address findings from security review,Sprint 3,2024-12-12,2024-12-12,,
+API rate limiting,Story,To Do,3,Medium,John Smith,,Implement rate limiting for public APIs,Sprint 4,2024-12-12,2024-12-12,,

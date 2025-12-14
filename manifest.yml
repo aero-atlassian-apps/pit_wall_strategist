@@ -1,0 +1,288 @@
+modules:
+  rovo:agent:
+    - key: pit-wall-engineer
+      name: Race Engineer
+      description: F1-style sprint strategist that monitors velocity and intervenes on stalled work.
+      prompt: |
+        You are an elite Formula 1 Race Engineer embedded in a software development team.
+        Your mission: Maximize Velocity, Minimize Drag, Deliver the Championship (Sprint Goals).
+        
+        === F1 TO AGILE TERMINOLOGY ===
+        | F1 Term | Agile Meaning |
+        |---------|---------------|
+        | Pit Stop | Sprint Retrospective |
+        | Lap Time | Cycle Time |
+        | Fuel Load | Work In Progress (WIP) |
+        | Tire Degradation | Team Burnout |
+        | Blue Flag | Priority Escalation |
+        | Red Flag | Blocked Work |
+        | Safety Car | Impediment Affecting All |
+        | DRS Zone | Fast-Track Approval |
+        | Undercut | Split Work for Speed |
+        | Overcut | Defer to Next Sprint |
+        | Slipstream | Linked/Dependent Work |
+        
+        === BOARD AWARENESS ===
+        You adapt your strategy based on the board type:
+        - SCRUM: Focus on Sprint Goals, Velocity, Burndown, Sprint Completion %
+        - KANBAN: Focus on Flow Efficiency, Cycle Time, WIP Limits, Throughput
+        
+        === DECISION FRAMEWORK ===
+        When analyzing an issue, consider:
+        1. Is it STALLED? (No movement > 24h = High Drag)
+        2. Is the DRIVER overloaded? (Assignee has > 3 active tickets = Tire Deg)
+        3. Is it BLOCKED? (Dependencies unresolved = Red Flag)
+        4. Is it TOO LARGE? (No subtasks, vague description = Needs Undercut)
+        5. Is it LOW PRIORITY blocking HIGH? (Needs Blue Flag)
+        
+        === YOUR 10 PIT STRATEGIES ===
+        1. THE UNDERCUT (split-ticket): Break large ticket into focused subtasks
+        2. TEAM ORDERS (reassign-ticket): Hand off to driver with fresh tires (capacity)
+        3. RETIRE CAR (defer-ticket): Move to backlog when ROI is negative this sprint
+        4. BLUE FLAG (change-priority): Escalate priority for critical path items
+        5. PUSH TO LIMIT (transition-issue): Force transition to next status
+        6. RED FLAG (add-blocker-flag): Mark as blocked, trigger incident response
+        7. SLIPSTREAM (link-issues): Connect related issues for visibility
+        8. FUEL ADJUSTMENT (update-estimate): Recalibrate story points based on new info
+        9. RADIO MESSAGE (add-radio-message): Broadcast strategic comment to team
+        10. PIT CREW TASK (create-subtask): Assign specific action to crew member
+        
+        === RESPONSE STYLE ===
+        - Be URGENT and DECISIVE. Every lap matters.
+        - Reference telemetry data when available.
+        - Always recommend a SPECIFIC action when problems are detected.
+        - End critical messages with "Box Box" for immediate action items.
+      actions:
+        - split-ticket
+        - reassign-ticket
+        - defer-ticket
+        - change-priority
+        - transition-issue
+        - add-blocker-flag
+        - link-issues
+        - update-estimate
+        - add-radio-message
+        - create-subtask
+
+  jira:projectPage:
+    - key: pit-wall-dashboard
+      resource: main-ui
+      resolver:
+        function: main-resolver
+      title: Pit Wall Telemetry
+      icon: resources/logo.png
+
+  function:
+    - key: main-resolver
+      handler: resolvers/index.handler
+    - key: action-handler
+      handler: resolvers/index.actionHandler
+
+  action:
+    - key: split-ticket
+      name: The Undercut
+      function: action-handler
+      actionVerb: CREATE
+      description: Split ticket into smaller subtasks for faster sector times
+      inputs:
+        issueKey:
+          type: string
+          title: Issue Key
+          description: The Jira issue key to split
+          required: true
+
+    - key: reassign-ticket
+      name: Team Orders
+      function: action-handler
+      actionVerb: UPDATE
+      description: Reassign to a driver with more track capacity
+      inputs:
+        issueKey:
+          type: string
+          title: Issue Key
+          description: The Jira issue key to reassign
+          required: true
+        newAssignee:
+          type: string
+          title: New Assignee Account ID
+          description: The accountId of the new assignee
+          required: true
+
+    - key: defer-ticket
+      name: Retire Car
+      function: action-handler
+      actionVerb: UPDATE
+      description: Move to backlog to save resources for next race
+      inputs:
+        issueKey:
+          type: string
+          title: Issue Key
+          description: The Jira issue key to defer
+          required: true
+
+    - key: change-priority
+      name: Blue Flag
+      function: action-handler
+      actionVerb: UPDATE
+      description: Escalate or change priority to clear the track
+      inputs:
+        issueKey:
+          type: string
+          title: Issue Key
+          description: The Jira issue key to prioritize
+          required: true
+        priority:
+          type: string
+          title: Priority Name
+          description: Target priority (e.g., Highest, High, Medium, Low)
+          required: true
+
+    - key: transition-issue
+      name: Push to Limit
+      function: action-handler
+      actionVerb: UPDATE
+      description: Transition issue to next workflow status
+      inputs:
+        issueKey:
+          type: string
+          title: Issue Key
+          description: The Jira issue key to transition
+          required: true
+        transitionName:
+          type: string
+          title: Transition Name
+          description: Name of the transition to execute
+          required: false
+
+    - key: add-blocker-flag
+      name: Red Flag
+      function: action-handler
+      actionVerb: UPDATE
+      description: Flag issue as blocked with reason
+      inputs:
+        issueKey:
+          type: string
+          title: Issue Key
+          description: The Jira issue key to flag
+          required: true
+        reason:
+          type: string
+          title: Block Reason
+          description: Reason for blocking
+          required: false
+
+    - key: link-issues
+      name: Slipstream
+      function: action-handler
+      actionVerb: CREATE
+      description: Link related issues for coordinated flow
+      inputs:
+        issueKey:
+          type: string
+          title: Source Issue Key
+          description: The source issue key
+          required: true
+        linkedIssueKey:
+          type: string
+          title: Target Issue Key
+          description: The issue key to link to
+          required: true
+        linkType:
+          type: string
+          title: Link Type
+          description: Type of link (e.g., Blocks, Relates, Duplicates)
+          required: false
+
+    - key: update-estimate
+      name: Fuel Adjustment
+      function: action-handler
+      actionVerb: UPDATE
+      description: Update story points or time estimate
+      inputs:
+        issueKey:
+          type: string
+          title: Issue Key
+          description: The Jira issue key to update
+          required: true
+        storyPoints:
+          type: number
+          title: Story Points
+          description: New story point estimate
+          required: false
+        timeEstimate:
+          type: string
+          title: Time Estimate
+          description: Time in Jira format (e.g., 2h, 1d)
+          required: false
+
+    - key: add-radio-message
+      name: Radio Message
+      function: action-handler
+      actionVerb: UPDATE
+      description: Send strategic comment to the team
+      inputs:
+        issueKey:
+          type: string
+          title: Issue Key
+          description: The Jira issue key to comment on
+          required: true
+        message:
+          type: string
+          title: Message
+          description: The message to broadcast
+          required: true
+
+    - key: create-subtask
+      name: Pit Crew Task
+      function: action-handler
+      actionVerb: CREATE
+      description: Create a specific subtask under the issue
+      inputs:
+        issueKey:
+          type: string
+          title: Parent Issue Key
+          description: The parent issue key for the subtask
+          required: true
+        summary:
+          type: string
+          title: Subtask Summary
+          description: Summary of the subtask to create
+          required: true
+        assignee:
+          type: string
+          title: Assignee Account ID
+          description: Optional assignee accountId
+          required: false
+
+resources:
+  - key: main-ui
+    path: static/frontend/build
+
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - read:jira-user
+    - manage:jira-project
+    - read:project:jira
+    - read:board-scope:jira-software
+    - read:sprint:jira-software
+    - read:board-scope.admin:jira-software
+    - read:issue:jira
+    - read:issue:jira-software
+    - read:filter:jira
+    - storage:app
+
+  content:
+    styles:
+      - 'unsafe-inline'
+
+  # Note: External fonts removed for Runs on Atlassian compliance
+  # Use bundled fonts instead
+
+app:
+  runtime:
+    name: nodejs22.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/68ec05c3-c88a-4bcb-b0ea-3655034dfeec

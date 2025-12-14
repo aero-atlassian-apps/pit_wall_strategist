@@ -1,0 +1,46 @@
+flowchart LR
+  subgraph Frontend[React/Vite UI]
+    A[App.tsx]
+    B[Dashboard Panels]
+    C[RaceControl / Strategy]
+    A --> B
+    A --> C
+  end
+
+  subgraph Bridge[Forge Bridge / Mocks]
+    D{{@forge/bridge}}
+    E[[Local Mocks]]
+  end
+
+  A -- VITE_PLATFORM=atlassian --> D
+  A -- VITE_PLATFORM=local --> E
+
+  subgraph Backend[Forge Resolvers]
+    F[getTelemetryData]
+    G[getSprintIssues]
+    H[getTimingMetrics]
+    I[getTrendData]
+    J[getDevOpsStatus]
+    K[Actions: split/reassign/defer]
+    L[getPermissionsDiagnostics]
+    M[getHealth]
+  end
+
+  D --> F & G & H & I & J & K & L & M
+  E --> A
+
+  subgraph Jira[Atlassian APIs]
+    N[/Jira REST/]
+    O[/Agile REST/]
+    P[/DevStatus/]
+  end
+
+  F --> O
+  F --> N
+  G --> O
+  H --> N
+  I --> N
+  J --> P
+  K --> N
+  L --> N
+
