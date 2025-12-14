@@ -100,7 +100,16 @@ resolver.define('getTelemetryData', async ({ context }: any) => {
         periodName = boardData.sprint.name
     }
 
-    return { success: true, data: { ...telemetry, sprintName: periodName, stalledTickets, feed: generateFeed(telemetry, stalledTickets, boardData.boardType), alertActive: stalledTickets.length > 0 } }
+    // Resolve locale (server-side i18n)
+    const supported = ['en', 'fr', 'es', 'pt'] as const
+    let locale: typeof supported[number] = 'en'
+    try {
+      const resp = await (await import('@forge/api')).default.asUser().requestJira((await import('@forge/api')).route`/rest/api/3/myself`, { headers: { Accept: 'application/json' } })
+      if (resp.ok) { const me = await resp.json(); const code = (me?.locale || '').toString().toLowerCase().slice(0, 2) as typeof supported[number]; locale = (supported as readonly string[]).includes(code) ? code : 'en' }
+      if (userConfig?.locale && (supported as readonly string[]).includes(userConfig.locale)) locale = userConfig.locale as typeof supported[number]
+    } catch {}
+
+    return { success: true, data: { ...telemetry, sprintName: periodName, stalledTickets, feed: generateFeed(telemetry, stalledTickets, boardData.boardType, locale), alertActive: stalledTickets.length > 0 } }
   } catch (error: any) {
     console.error('Error fetching telemetry:', error)
     return { success: false, error: error.message || 'Failed to fetch telemetry data' }
@@ -706,19 +715,32 @@ resolver.define('getAssignableUsers', async ({ payload, context }: any) => {
   } catch (error: any) { return { success: false, error: error.message } }
 })
 
-function generateFeed(telemetry: TelemetryData, stalledTickets: StalledTicket[], boardType: 'scrum' | 'kanban' | 'business') {
+function generateFeed(telemetry: TelemetryData, stalledTickets: StalledTicket[], boardType: 'scrum' | 'kanban' | 'business', locale: 'en' | 'fr' | 'es' | 'pt') {
+  const FEED_I18N: Record<string, Record<string, string>> = {
+    en: { raceStartSprint: 'Sprint Race', raceStartEndurance: 'Endurance Race', greenFlagStarted: 'Green Flag. {race} Started.', sectorClear: 'Sector 1 Clear. Good pace.', fuelWarn: 'WARN: Fuel load approaching limit.', wipCritical: 'CRITICAL: WIP limit exceeded! Reduce fuel load.', dragDetected: '{key} High Drag Detected.', stalledBox: '{key} Stalled > {hours}h. BOX BOX!' },
+    fr: { raceStartSprint: 'Course Sprint', raceStartEndurance: "Course d'Endurance", greenFlagStarted: 'Drapeau Vert. {race} démarrée.', sectorClear: 'Secteur 1 dégagé. Bon rythme.', fuelWarn: "ALERTE : Charge de carburant proche de la limite.", wipCritical: 'CRITIQUE : Limite WIP dépassée ! Réduire la charge.', dragDetected: '{key} Traînée élevée détectée.', stalledBox: '{key} En panne > {hours}h. BOX BOX !' },
+    es: { raceStartSprint: 'Carrera Sprint', raceStartEndurance: 'Carrera de Resistencia', greenFlagStarted: 'Bandera Verde. {race} iniciada.', sectorClear: 'Sector 1 despejado. Buen ritmo.', fuelWarn: 'ADVERTENCIA: Carga de combustible acercándose al límite.', wipCritical: 'CRÍTICO: ¡Límite de WIP excedido! Reducir carga.', dragDetected: '{key} Alta resistencia detectada.', stalledBox: '{key} Atascado > {hours}h. ¡BOX BOX!' },
+    pt: { raceStartSprint: 'Corrida Sprint', raceStartEndurance: 'Corrida de Endurance', greenFlagStarted: 'Bandeira Verde. {race} iniciada.', sectorClear: 'Setor 1 livre. Bom ritmo.', fuelWarn: 'AVISO: Carga de combustível se aproximando do limite.', wipCritical: 'CRÍTICO: Limite de WIP excedido! Reduzir carga.', dragDetected: '{key} Alta resistência detectada.', stalledBox: '{key} Parado > {hours}h. BOX BOX!' }
+  }
+  const dict = FEED_I18N[locale] || FEED_I18N.en
   const feed: Array<{ time: string; msg: string; type: 'info' | 'success' | 'warning' | 'critical' }> = []
   const now = new Date()
-  const raceType = boardType === 'kanban' ? 'Endurance Race' : 'Sprint Race'
-  feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 4)), msg: `Green Flag. ${raceType} Started.`, type: 'info' })
-  if (telemetry.wipLoad < 80) feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 2)), msg: 'Sector 1 Clear. Good pace.', type: 'success' })
-  if (telemetry.wipLoad >= 80 && telemetry.wipLoad < 100) feed.push({ time: formatTime(new Date(now.getTime() - 3600000)), msg: 'WARN: Fuel load approaching limit.', type: 'warning' })
-  if (telemetry.wipLoad >= 100) feed.push({ time: formatTime(new Date(now.getTime() - 1800000)), msg: 'CRITICAL: WIP limit exceeded! Reduce fuel load.', type: 'critical' })
-  stalledTickets.forEach(ticket => { feed.push({ time: formatTime(new Date(now.getTime() - 1800000)), msg: `${ticket.key} High Drag Detected.`, type: 'warning' }); feed.push({ time: formatTime(now), msg: `${ticket.key} Stalled > ${ticket.hoursSinceUpdate}h. BOX BOX!`, type: 'critical' }) })
+  const raceType = boardType === 'kanban' ? dict.raceStartEndurance : dict.raceStartSprint
+  feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 4), locale), msg: dict.greenFlagStarted.replace('{race}', raceType), type: 'info' })
+  if (telemetry.wipLoad < 80) feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 2), locale), msg: dict.sectorClear, type: 'success' })
+  if (telemetry.wipLoad >= 80 && telemetry.wipLoad < 100) feed.push({ time: formatTime(new Date(now.getTime() - 3600000), locale), msg: dict.fuelWarn, type: 'warning' })
+  if (telemetry.wipLoad >= 100) feed.push({ time: formatTime(new Date(now.getTime() - 1800000), locale), msg: dict.wipCritical, type: 'critical' })
+  stalledTickets.forEach(ticket => {
+    feed.push({ time: formatTime(new Date(now.getTime() - 1800000), locale), msg: dict.dragDetected.replace('{key}', ticket.key), type: 'warning' })
+    feed.push({ time: formatTime(now, locale), msg: dict.stalledBox.replace('{key}', ticket.key).replace('{hours}', String(ticket.hoursSinceUpdate)), type: 'critical' })
+  })
   return feed
 }
 
-function formatTime(date: Date) { return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) }
+function formatTime(date: Date, locale: 'en' | 'fr' | 'es' | 'pt') {
+  const locMap: Record<string, string> = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', pt: 'pt-PT' }
+  return date.toLocaleTimeString(locMap[locale] || 'en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+}
 
 function getMockData() {
   return { boardType: 'scrum', sprintStatus: 'CRITICAL', sprintName: 'Sprint 42', velocityDelta: -12, wipLoad: 110, wipLimit: 8, wipCurrent: 9, teamBurnout: { sarah: 95, mike: 40, jess: 88 }, issuesByStatus: { todo: 3, inProgress: 5, done: 2 }, feed: [{ time: '09:00', msg: 'Green Flag. Sprint Race Started.', type: 'info' }, { time: '10:30', msg: 'Sector 1 Clear.', type: 'success' }, { time: '13:45', msg: 'WARN: TICKET-422 High Drag Detected.', type: 'warning' }, { time: '14:00', msg: 'CRITICAL: TICKET-422 Stalled > 24h.', type: 'critical' }], stalledTickets: [{ key: 'TICKET-422', summary: 'Implement OAuth2 Backend', assignee: 'Sarah', status: 'In Progress', statusCategory: 'indeterminate', reason: 'API Spec Undefined' }], alertActive: true }
