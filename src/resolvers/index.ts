@@ -18,8 +18,32 @@ const resolver = new Resolver()
 const PLATFORM = process.env.PLATFORM || 'atlassian'
 let userConfig: TelemetryConfig = { ...DEFAULT_CONFIG }
 
-resolver.define('getConfig', async ({ context }: any) => { try { const accountId = context?.accountId || context?.userAccountId || context?.cloudId || 'anon'; const key = `telemetryConfig:${accountId}`; const stored = await storage.get(key); if (stored) { userConfig = { ...DEFAULT_CONFIG, ...stored } } else { userConfig = { ...DEFAULT_CONFIG } } return { success: true, config: userConfig } } catch (e: any) { return { success: true, config: { ...DEFAULT_CONFIG } } } })
-resolver.define('setConfig', async ({ payload, context }: { payload: Partial<TelemetryConfig>; context: any }) => { try { const accountId = context?.accountId || context?.userAccountId || context?.cloudId || 'anon'; const key = `telemetryConfig:${accountId}`; userConfig = { ...DEFAULT_CONFIG, ...payload }; await storage.set(key, userConfig); return { success: true, config: userConfig } } catch (e: any) { return { success: false, error: e?.message || 'failed to save' } } })
+resolver.define('getConfig', async ({ context }: any) => {
+  try {
+    const accountId = context?.accountId || context?.userAccountId || context?.cloudId || 'anon'
+    const projectKey = context?.extension?.project?.key || 'global'
+    const projectScopedKey = `telemetryConfig:${accountId}:${projectKey}`
+    const legacyKey = `telemetryConfig:${accountId}`
+    let stored = await storage.get(projectScopedKey)
+    if (!stored) { stored = await storage.get(legacyKey) }
+    userConfig = stored ? { ...DEFAULT_CONFIG, ...stored } : { ...DEFAULT_CONFIG }
+    return { success: true, config: userConfig }
+  } catch (e: any) {
+    return { success: true, config: { ...DEFAULT_CONFIG } }
+  }
+})
+resolver.define('setConfig', async ({ payload, context }: { payload: Partial<TelemetryConfig>; context: any }) => {
+  try {
+    const accountId = context?.accountId || context?.userAccountId || context?.cloudId || 'anon'
+    const projectKey = context?.extension?.project?.key || 'global'
+    const projectScopedKey = `telemetryConfig:${accountId}:${projectKey}`
+    userConfig = { ...DEFAULT_CONFIG, ...payload }
+    await storage.set(projectScopedKey, userConfig)
+    return { success: true, config: userConfig }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'failed to save' }
+  }
+})
 
 // === View Mode Persistence (Hybrid Role-Based Views) ===
 resolver.define('getViewMode', async ({ context }: any) => {
