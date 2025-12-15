@@ -191,7 +191,7 @@ export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, on
   return (
     <F1Card
       title={t('strategyAssistant', locale)}
-      badge={boardType === 'kanban' ? 'FLOW' : 'STRATEGY'}
+      badge={boardType === 'kanban' ? t('flow', locale) : t('strategy', locale)}
       badgeVariant="success"
       fullHeight
       glowColor="purple"

@@ -39,7 +39,7 @@ function SettingsPanel({ config = DEFAULT_CONFIG, boardType = 'scrum', boardName
   function handleReset() { setLocalConfig(DEFAULT_CONFIG); setTypeRows([]); setHasChanges(true) }
   const locale = (window as any).__PWS_LOCALE || 'en'
   return (
-    <F1Card title={t('settings', locale)} badge="SETTINGS">
+    <F1Card title={t('settings', locale)} badge={t('settings', locale)}>
       <SettingsContainer>
         <SettingGroup>
           <SettingLabel>{t('detectedBoard', locale)}</SettingLabel>
@@ -112,4 +112,4 @@ function SettingsPanel({ config = DEFAULT_CONFIG, boardType = 'scrum', boardName
 }
 
 export default SettingsPanel
-function formatHint(h?: { avgInProgressHours: number; recommendedMin: number; recommendedMax: number }) { if (!h) return ''; return `rec: ${h.recommendedMin}–${h.recommendedMax}h` }
+function formatHint(h?: { avgInProgressHours: number; recommendedMin: number; recommendedMax: number }) { const locale = (window as any).__PWS_LOCALE || 'en'; if (!h) return ''; return `${t('recShort', locale)} ${h.recommendedMin}–${h.recommendedMax}${t('hoursUnit', locale)}` }

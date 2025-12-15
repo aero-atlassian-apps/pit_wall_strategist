@@ -251,36 +251,36 @@ export default function ActionPreviewModal({
                     <ActionIcon $variant={variant}>{icon}</ActionIcon>
                     <div>
                         <Title>{action.name}</Title>
-                        <Subtitle>{action.description || 'Execute pit strategy'}</Subtitle>
+                        <Subtitle>{action.description || t('executePitStrategy', (window as any).__PWS_LOCALE || 'en')}</Subtitle>
                     </div>
                 </Header>
 
                 <PreviewSection>
-                    <PreviewTitle>Target Issue</PreviewTitle>
+                    <PreviewTitle>{t('targetIssue', (window as any).__PWS_LOCALE || 'en')}</PreviewTitle>
                     <PreviewItem>
-                        <PreviewLabel>Key:</PreviewLabel>
+                        <PreviewLabel>{t('key', (window as any).__PWS_LOCALE || 'en')}:</PreviewLabel>
                         <PreviewValue>{ticket.key}</PreviewValue>
                     </PreviewItem>
                     <PreviewItem>
-                        <PreviewLabel>Summary:</PreviewLabel>
-                        <PreviewValue>{ticket.summary || 'No summary'}</PreviewValue>
+                        <PreviewLabel>{t('summary', (window as any).__PWS_LOCALE || 'en')}:</PreviewLabel>
+                        <PreviewValue>{ticket.summary || t('noSummary', (window as any).__PWS_LOCALE || 'en')}</PreviewValue>
                     </PreviewItem>
                     {ticket.assignee && (
                         <PreviewItem>
-                            <PreviewLabel>Driver:</PreviewLabel>
+                            <PreviewLabel>{t('driver', (window as any).__PWS_LOCALE || 'en')}:</PreviewLabel>
                             <PreviewValue>{ticket.assignee}</PreviewValue>
                         </PreviewItem>
                     )}
                     {ticket.status && (
                         <PreviewItem>
-                            <PreviewLabel>Status:</PreviewLabel>
+                            <PreviewLabel>{t('status', (window as any).__PWS_LOCALE || 'en')}:</PreviewLabel>
                             <PreviewValue>{ticket.status}</PreviewValue>
                         </PreviewItem>
                     )}
                 </PreviewSection>
 
                 <PreviewSection>
-                    <PreviewTitle>Proposed Changes</PreviewTitle>
+                    <PreviewTitle>{t('proposedChanges', (window as any).__PWS_LOCALE || 'en')}</PreviewTitle>
                     {changes.map((change, idx) => (
                         <ChangeSummary key={idx} $type={change.type}>
                             <span>{change.type === 'add' ? '➕' : change.type === 'remove' ? '➖' : '↔️'}</span>
@@ -288,7 +288,7 @@ export default function ActionPreviewModal({
                                 <strong>{change.label}:</strong>{' '}
                                 {change.from && change.to
                                     ? `${change.from} → ${change.to}`
-                                    : change.to || change.from || 'Will be updated'}
+                                    : change.to || change.from || t('willBeUpdated', (window as any).__PWS_LOCALE || 'en')}
                             </span>
                         </ChangeSummary>
                     ))}
@@ -296,11 +296,11 @@ export default function ActionPreviewModal({
 
                 <ButtonRow>
                     <Button onClick={onCancel} disabled={loading}>
-                        Cancel
+                        {t('cancel', (window as any).__PWS_LOCALE || 'en')}
                     </Button>
                     <Button $primary onClick={onConfirm} disabled={loading}>
                         {loading && <LoadingSpinner />}
-                        {loading ? 'Executing...' : 'Confirm Strategy'}
+                        {loading ? t('executing', (window as any).__PWS_LOCALE || 'en') : t('confirmStrategy', (window as any).__PWS_LOCALE || 'en')}
                     </Button>
                 </ButtonRow>
             </Modal>

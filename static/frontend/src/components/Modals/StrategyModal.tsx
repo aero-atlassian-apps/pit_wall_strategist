@@ -195,11 +195,11 @@ function StrategyModal({ ticket, boardContext, alertType = 'general', onClose, o
             <TicketKey>{ticket.key}</TicketKey>
             <TicketSummary>{ticket.summary}</TicketSummary>
             <TicketMeta>
-              <span>🏎️ {ticket.assignee || 'Unassigned'}</span>
-              <span>📍 {ticket.status || 'Unknown'}</span>
-              <span>🎯 {ticket.priority || 'Medium'}</span>
-              <span>📋 {ticket.issueType || 'Task'}</span>
-              {issueContext.daysInStatus > 0 && <span>⏱️ {issueContext.daysInStatus}d in status</span>}
+              <span>🏎️ {ticket.assignee || t('unassigned', locale)}</span>
+              <span>📍 {ticket.status || t('unknown', locale)}</span>
+              <span>🎯 {ticket.priority || t('priority', locale)}</span>
+              <span>📋 {ticket.issueType || t('task', locale)}</span>
+              {issueContext.daysInStatus > 0 && <span>⏱️ {issueContext.daysInStatus}{t('daysShort', locale)} {t('inStatus', locale)}</span>}
             </TicketMeta>
           </TicketInfo>
 
@@ -217,7 +217,7 @@ function StrategyModal({ ticket, boardContext, alertType = 'general', onClose, o
             </AssigneeBox>
           )}
 
-          <AnalysisLabel>⚡ {t('selectStrategy', locale)} ({recommendedActions.length} {boardCtx.boardType === 'scrum' ? 'Sprint' : 'Flow'} Tactics)</AnalysisLabel>
+          <AnalysisLabel>⚡ {t('selectStrategy', locale)} ({recommendedActions.length} {boardCtx.boardType === 'scrum' ? t('sprint', locale) : t('flow', locale)} {t('tactics', locale)})</AnalysisLabel>
           <ActionCardsGrid>
             {recommendedActions.map(action => (
               <ActionCard
@@ -227,7 +227,7 @@ function StrategyModal({ ticket, boardContext, alertType = 'general', onClose, o
               >
                 {(action.relevance === 'critical' || action.relevance === 'recommended') && (
                   <RelevanceBadge $type={action.relevance}>
-                    {action.relevance === 'critical' ? '🔥 URGENT' : '✓ SUGGESTED'}
+                    {action.relevance === 'critical' ? t('urgent', locale) : t('suggested', locale)}
                   </RelevanceBadge>
                 )}
                 <ActionIcon>{action.icon}</ActionIcon>

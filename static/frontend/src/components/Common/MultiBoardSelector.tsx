@@ -201,12 +201,12 @@ export default function MultiBoardSelector({
             </SelectorButton>
 
             <Dropdown $visible={isOpen}>
-                <DropdownHeader>Switch Board</DropdownHeader>
+                <DropdownHeader>{t('switchBoard', (window as any).__PWS_LOCALE || 'en')}</DropdownHeader>
 
                 {isLoading ? (
-                    <LoadingState>Loading boards...</LoadingState>
+                    <LoadingState>{t('loadingBoards', (window as any).__PWS_LOCALE || 'en')}</LoadingState>
                 ) : boards.length === 0 ? (
-                    <LoadingState>No boards found</LoadingState>
+                    <LoadingState>{t('noBoardsFound', (window as any).__PWS_LOCALE || 'en')}</LoadingState>
                 ) : (
                     boards.map(board => (
                         <BoardOption
@@ -229,3 +229,4 @@ export default function MultiBoardSelector({
         </Container>
     )
 }
+import { t } from '../../i18n'

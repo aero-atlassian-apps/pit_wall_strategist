@@ -149,7 +149,7 @@ export default function ViewModeSelector() {
             </SelectorButton>
 
             <Dropdown $visible={isOpen}>
-                <DropdownHeader>Select Your View</DropdownHeader>
+                <DropdownHeader>{t('selectYourView', (window as any).__PWS_LOCALE || 'en')}</DropdownHeader>
                 {options.map(option => (
                     <OptionItem
                         key={option.id}
@@ -168,3 +168,4 @@ export default function ViewModeSelector() {
         </Container>
     )
 }
+import { t } from '../../i18n'

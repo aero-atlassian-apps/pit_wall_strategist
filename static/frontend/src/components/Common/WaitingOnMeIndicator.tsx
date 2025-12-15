@@ -128,6 +128,7 @@ interface WaitingOnMeProps {
 }
 
 function isWaitingOnUser(issue: Issue, userName: string): { waiting: boolean; reason: string } {
+    const locale = (window as any).__PWS_LOCALE || 'en'
     const labels = issue.labels || issue.fields?.labels || []
     const summary = (issue.summary || issue.fields?.summary || '').toLowerCase()
     const status = (issue.status || issue.fields?.status?.name || '').toLowerCase()
@@ -136,19 +137,19 @@ function isWaitingOnUser(issue: Issue, userName: string): { waiting: boolean; re
 
     // Check if user is mentioned in labels as blocker
     if (labels.some(l => l.toLowerCase().includes('waiting') && l.toLowerCase().includes(userLower))) {
-        return { waiting: true, reason: 'Tagged as waiting on you' }
+        return { waiting: true, reason: t('taggedWaitingOnYou', locale) }
     }
 
     // Check if issue mentions user and is blocked
     if ((summary.includes(userLower) || summary.includes(userName.split(' ')[0].toLowerCase())) &&
         (status.includes('block') || status.includes('waiting') || labels.some(l => l.toLowerCase().includes('block')))) {
-        return { waiting: true, reason: 'Mentioned in blocked ticket' }
+        return { waiting: true, reason: t('mentionedInBlockedTicket', locale) }
     }
 
     // Check if issue is in review and assigned to someone else but user is original author
     // This is a heuristic - in real implementation would check reporter field
     if (status.includes('review') && !assignee.includes(userLower)) {
-        return { waiting: true, reason: 'Your ticket awaiting review' }
+        return { waiting: true, reason: t('yourTicketAwaitingReview', locale) }
     }
 
     // Check for explicit "waiting on X" labels
@@ -156,7 +157,7 @@ function isWaitingOnUser(issue: Issue, userName: string): { waiting: boolean; re
         const lower = l.toLowerCase()
         return lower === `waiting-${userLower}` || lower === `blocked-by-${userLower}`
     })) {
-        return { waiting: true, reason: 'Explicitly blocked by you' }
+        return { waiting: true, reason: t('explicitlyBlockedByYou', locale) }
     }
 
     return { waiting: false, reason: '' }
@@ -186,12 +187,12 @@ export default function WaitingOnMeIndicator({ issues, currentUserName }: Waitin
                     {hasItems ? '⏳' : '✅'}
                 </IconWrapper>
                 <Count $hasItems={hasItems}>{waitingIssues.length}</Count>
-                <Label>Waiting on you</Label>
+                <Label>{t('waitingOnYou', (window as any).__PWS_LOCALE || 'en')}</Label>
             </Container>
 
             {showTooltip && waitingIssues.length > 0 && (
                 <Tooltip>
-                    <TooltipHeader>🚦 Tickets Blocked by You</TooltipHeader>
+                    <TooltipHeader>🚦 {t('ticketsBlockedByYou', (window as any).__PWS_LOCALE || 'en')}</TooltipHeader>
                     <TicketList>
                         {waitingIssues.slice(0, 5).map(issue => (
                             <TicketItem key={issue.key}>
@@ -205,7 +206,7 @@ export default function WaitingOnMeIndicator({ issues, currentUserName }: Waitin
                         ))}
                         {waitingIssues.length > 5 && (
                             <TicketItem>
-                                <TicketSummary>+{waitingIssues.length - 5} more...</TicketSummary>
+                                <TicketSummary>+{waitingIssues.length - 5} {t('more', (window as any).__PWS_LOCALE || 'en')}...</TicketSummary>
                             </TicketItem>
                         )}
                     </TicketList>
@@ -214,3 +215,4 @@ export default function WaitingOnMeIndicator({ issues, currentUserName }: Waitin
         </Wrapper>
     )
 }
+import { t } from '../../i18n'
