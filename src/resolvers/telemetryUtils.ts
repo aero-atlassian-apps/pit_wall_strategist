@@ -41,19 +41,51 @@ export async function fetchBoardData(projectKey: string, config: TelemetryConfig
 
 async function fetchBusinessProjectData(projectKey: string): Promise<BoardData> {
     const jql = `project = "${projectKey}" ORDER BY updated DESC`;
+    // Fetch generic issues for display
     const result = await dataService.searchJqlUserOnly(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels'], 100);
+
+    // Fetch historical data for flow metrics (last 30 days completed)
+    const historyJql = `project = "${projectKey}" AND statusCategory = Done AND updated >= -30d`;
+    const historyResult = await dataService.searchJqlUserOnly(historyJql, ['status', 'created', 'resolutiondate'], 200, ['changelog']);
 
     return {
         boardType: 'business',
         boardId: null,
         boardName: 'Work Items',
-        issues: result.ok ? result.issues : []
+        issues: result.ok ? result.issues : [],
+        historicalIssues: historyResult.ok ? historyResult.issues : []
     };
 }
 
 async function fetchScrumData(boardCtx: BoardContext, config: TelemetryConfig, projectKey?: string): Promise<BoardData> {
     const boardId = boardCtx.boardId!;
     let activeSprint = await dataService.getBoardActiveSprint(boardId);
+
+    // Fetch Closed Sprints for Velocity Calculation
+    const closedSprints = await dataService.getClosedSprints(boardId, 5);
+
+    // Fetch Historical Issues (Issues from Closed Sprints)
+    // We need this to calculate accurate velocity based on what was actually in those sprints
+    let historicalIssues: JiraIssue[] = [];
+    if (closedSprints.length > 0) {
+        const sprintIds = closedSprints.map(s => s.id).join(',');
+        const historyJql = `sprint in (${sprintIds})`;
+
+        // Discover story points field to fetch it
+        const customFields = await fieldDiscoveryService.discoverCustomFields();
+        const storyPointsField = customFields.storyPoints || config.storyPointsFieldName;
+
+        const fieldsToFetch = ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate'];
+        if (storyPointsField) {
+            fieldsToFetch.push(storyPointsField);
+        }
+
+        // We fetch changelog for Cycle Time calculation
+        const historyRes = await dataService.searchJqlUserOnly(historyJql, fieldsToFetch, 500, ['changelog']);
+        if (historyRes.ok) {
+            historicalIssues = historyRes.issues;
+        }
+    }
 
     if (!activeSprint) {
         activeSprint = await dataService.getBoardFutureSprints(boardId);
@@ -67,7 +99,9 @@ async function fetchScrumData(boardCtx: BoardContext, config: TelemetryConfig, p
             return {
                 ...boardCtx,
                 sprint: { id: -1, name: 'Active Sprint (JQL Detected)', state: 'active' },
-                issues: result.issues
+                issues: result.issues,
+                closedSprints,
+                historicalIssues
             };
         }
     }
@@ -75,11 +109,11 @@ async function fetchScrumData(boardCtx: BoardContext, config: TelemetryConfig, p
     if (!activeSprint) {
          if (config?.includeBoardIssuesWhenSprintEmpty !== false) {
              const issues = await fetchAllBoardIssues(boardId, projectKey);
-             return { ...boardCtx, issues, sprint: undefined };
+             return { ...boardCtx, issues, sprint: undefined, closedSprints, historicalIssues };
          }
          // Graceful fallback instead of error
          console.warn(`[Telemetry] No sprints found for board ${boardId}. Returning empty state.`);
-         return { ...boardCtx, issues: [], sprint: undefined };
+         return { ...boardCtx, issues: [], sprint: undefined, closedSprints, historicalIssues };
     }
 
     const initialJql = `sprint = ${activeSprint.id}`;
@@ -95,22 +129,35 @@ async function fetchScrumData(boardCtx: BoardContext, config: TelemetryConfig, p
     };
 
     if (initialJqlRes.ok && initialJqlRes.issues.length > 0) {
-        return { ...boardCtx, sprint: sprintObj, issues: initialJqlRes.issues };
+        return { ...boardCtx, sprint: sprintObj, issues: initialJqlRes.issues, closedSprints, historicalIssues };
     }
 
     const issues = await fetchAllBoardIssues(boardId, projectKey, activeSprint.id);
-    return { ...boardCtx, sprint: sprintObj, issues };
+    return { ...boardCtx, sprint: sprintObj, issues, closedSprints, historicalIssues };
 }
 
 async function fetchKanbanData(boardCtx: BoardContext): Promise<BoardData> {
     const boardId = boardCtx.boardId!;
     const apiIssues = await dataService.getKanbanBoardIssues(boardId);
-    if (apiIssues.length > 0) return { ...boardCtx, issues: apiIssues };
+
+    // Fetch historical data for Cycle Time (last 30 days completed)
+    let historicalIssues: JiraIssue[] = [];
+    if (apiIssues.length > 0) {
+         // Infer project from first issue
+         const projectKey = apiIssues[0].fields?.project?.key || apiIssues[0].key.split('-')[0];
+         if (projectKey) {
+             const historyJql = `project = "${projectKey}" AND statusCategory = Done AND updated >= -30d`;
+             const historyRes = await dataService.searchJqlUserOnly(historyJql, ['status', 'created', 'resolutiondate'], 200, ['changelog']);
+             if (historyRes.ok) historicalIssues = historyRes.issues;
+         }
+    }
+
+    if (apiIssues.length > 0) return { ...boardCtx, issues: apiIssues, historicalIssues };
 
     const filterIssues = await fetchAllBoardIssues(boardId);
-    if (filterIssues.length > 0) return { ...boardCtx, issues: filterIssues };
+    if (filterIssues.length > 0) return { ...boardCtx, issues: filterIssues, historicalIssues };
 
-    return { ...boardCtx, issues: [] };
+    return { ...boardCtx, issues: [], historicalIssues: [] };
 }
 
 async function fetchAllBoardIssues(boardId: number, projectKey?: string, sprintId?: number): Promise<JiraIssue[]> {
