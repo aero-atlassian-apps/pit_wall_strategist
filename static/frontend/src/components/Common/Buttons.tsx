@@ -92,9 +92,16 @@ export const CloseIcon = () => (
   </svg>
 )
 
-export function IconButton({ onClick, title, children, size = 'sm', className }: { onClick?: () => void; title?: string; children?: React.ReactNode; size?: 'sm' | 'md'; className?: string }) {
+export function IconButton({ onClick, title, ariaLabel, children, size = 'sm', className }: { onClick?: () => void; title?: string; ariaLabel?: string; children?: React.ReactNode; size?: 'sm' | 'md'; className?: string }) {
   return (
-    <IconButtonStyled onClick={onClick} title={title} $size={size} className={className} type="button">
+    <IconButtonStyled
+      onClick={onClick}
+      title={title}
+      aria-label={ariaLabel || title}
+      $size={size}
+      className={className}
+      type="button"
+    >
       {children}
     </IconButtonStyled>
   )
