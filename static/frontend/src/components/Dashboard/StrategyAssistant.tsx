@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import styled, { keyframes, css } from 'styled-components'
 import F1Card from '../Common/F1Card'
-import StatusLight from '../Common/StatusLight'
 import { t } from '../../i18n'
 import { IconButton, RefreshIcon } from '../Common/Buttons'
-import { invoke } from '@forge/bridge'
+import { ALL_ACTIONS } from '../../domain/strategy/ActionDefinitions'
+import { analyzeActionRelevance } from '../../domain/strategy/ActionPolicies'
+import type { BoardContext, IssueContext } from '../../domain/strategy/StrategyTypes'
 
 const blinkAnimation = keyframes`0%,100%{opacity:1;box-shadow:0 0 30px rgba(255,0,51,.8), inset 0 0 20px rgba(255,0,51,.3)}50%{opacity:.85;box-shadow:0 0 50px rgba(255,0,51,1), inset 0 0 30px rgba(255,0,51,.5)}`
 
@@ -15,87 +16,54 @@ const AssistantContainer = styled.div`
   gap: ${({ theme }) => (theme as any).spacing.md};
 `
 
-const InsightPanel = styled.div`
-  flex: 1;
-  background: ${({ theme }) => (theme as any).colors.bgMain}55;
-  border-radius: ${({ theme }) => (theme as any).borderRadius.md};
-  border: 1px solid ${({ theme }) => (theme as any).colors.border};
-  padding: ${({ theme }) => (theme as any).spacing.md};
+const RecommendationList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => (theme as any).spacing.sm};
-  min-height: 120px;
-`
-
-const InsightHeader = styled.h4`
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
-  font-size: 11px;
-  text-transform: uppercase;
-  color: ${({ theme }) => (theme as any).colors.textMuted};
-  letter-spacing: 1px;
-  margin: 0;
-  display: flex;
-  align-items: center;
   gap: 8px;
+  overflow-y: auto;
+  max-height: 200px;
+  padding-right: 4px;
 `
 
-const InsightText = styled.div`
-  color: ${({ theme }) => (theme as any).colors.textPrimary};
-  font-size: 13px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-`
-
-const ActionGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: ${({ theme }) => (theme as any).spacing.sm};
-`
-
-const ActionButton = styled.button<{ $variant?: 'default' | 'primary' | 'critical' }>`
-  background: ${({ theme, $variant }) =>
-    $variant === 'critical' ? 'rgba(255, 0, 51, 0.1)' :
-    $variant === 'primary' ? 'rgba(191, 90, 242, 0.1)' :
+const RecommendationCard = styled.div<{ $relevance: 'critical' | 'recommended' | 'available' }>`
+  background: ${({ theme, $relevance }) =>
+    $relevance === 'critical' ? 'rgba(255, 0, 51, 0.1)' :
+    $relevance === 'recommended' ? 'rgba(191, 90, 242, 0.1)' :
     (theme as any).colors.bgCard};
-  border: 1px solid ${({ theme, $variant }) =>
-    $variant === 'critical' ? (theme as any).colors.redAlert :
-    $variant === 'primary' ? (theme as any).colors.purpleSector :
+  border: 1px solid ${({ theme, $relevance }) =>
+    $relevance === 'critical' ? (theme as any).colors.redAlert :
+    $relevance === 'recommended' ? (theme as any).colors.purpleSector :
     (theme as any).colors.border};
   border-left-width: 4px;
-  color: ${({ theme, $variant }) =>
-    $variant === 'critical' ? (theme as any).colors.redAlert :
-    $variant === 'primary' ? (theme as any).colors.purpleSector :
-    (theme as any).colors.textSecondary};
-  padding: 10px 12px;
+  padding: 10px;
   border-radius: 4px;
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  text-align: left;
   cursor: pointer;
   transition: all 0.2s ease;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 
   &:hover {
-    background: ${({ theme, $variant }) =>
-        $variant === 'critical' ? 'rgba(255, 0, 51, 0.2)' :
-        $variant === 'primary' ? 'rgba(191, 90, 242, 0.2)' :
-        (theme as any).colors.bgCardHover};
     transform: translateX(2px);
+    background: ${({ theme }) => (theme as any).colors.bgCardHover};
   }
 `
 
-const ActionTitle = styled.span`
-  font-weight: 700;
+const RecHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
 `
 
-const ActionDesc = styled.span`
-  font-size: 9px;
-  opacity: 0.7;
-  text-transform: none;
+const RecTitle = styled.span`
+  font-family: ${({ theme }) => (theme as any).fonts.mono};
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+`
+
+const RecReason = styled.div`
+  font-size: 11px;
+  color: ${({ theme }) => (theme as any).colors.textSecondary};
+  font-style: italic;
 `
 
 const BoxBoxButton = styled.button<{ $active: boolean }>`
@@ -136,51 +104,94 @@ interface Props {
   onRefresh?: () => void;
   boardType?: 'scrum' | 'kanban' | 'business';
   projectContext?: any;
+  issues?: any[];
+  telemetryData?: any;
 }
 
-export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, onRefresh, boardType = 'scrum', projectContext }: Props) {
+export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, onRefresh, boardType = 'scrum', projectContext, issues = [], telemetryData }: Props) {
   const locale = (window as any).__PWS_LOCALE || 'en'
-  const isKanban = boardType === 'kanban'
-  const [insight, setInsight] = useState<string>(t('analyzingTelemetry', locale))
-  const [loading, setLoading] = useState(false)
+  const [recommendations, setRecommendations] = useState<any[]>([])
 
-  // Generate an initial insight based on feed/context
+  // Determine the best 3-5 recommendations based on current state
   useEffect(() => {
-      // Find critical or warning items from feed
-      const critical = feed.filter(f => f.type === 'critical').pop()
-      const warning = feed.filter(f => f.type === 'warning').pop()
+    if (!issues.length || !telemetryData) return
 
-      if (critical) {
-          setInsight(`${t('criticalAlert', locale)} ${critical.msg}\n${t('immediateIntervention', locale)}`)
-      } else if (warning) {
-          setInsight(`${t('warning', locale)} ${warning.msg}\n${t('adjustStrategy', locale)}`)
-      } else {
-          setInsight(isKanban ? t('flowOptimalHint', locale) : t('sprintPaceHint', locale))
-      }
-  }, [feed, isKanban])
+    const boardCtx: BoardContext = {
+      boardType: boardType === 'business' ? 'kanban' : (boardType as 'scrum' | 'kanban' | 'unknown'), // Treat business as Kanban for logic
+      sprintActive: !!telemetryData.sprint,
+      sprintDaysRemaining: telemetryData.sprintDaysRemaining,
+      wipLimit: telemetryData.wipLimit,
+      wipCurrent: telemetryData.wipCurrent
+    }
 
-  const handleAction = async (prompt: string, label: string) => {
-      setLoading(true)
-      setInsight(`${t('analyzing', locale)} ${label}...`)
+    // Find the most "problematic" issues first
+    const stalledIssues = issues.filter((i: any) => i.isStalled)
+    const blockedIssues = issues.filter((i: any) => i.isBlocked)
+    const agingIssues = issues.filter((i: any) => i.statusCategory === 'indeterminate' && (i.daysInStatus || 0) > 5)
 
-      try {
-        const result = await invoke('chatWithRovo', { message: prompt }) as any
-        if (result && result.success) {
-            setInsight(result.answer)
-        } else {
-            setInsight(`${t('failedToAnalyze', locale)} ${result?.error || t('unknown', locale)}`)
+    const candidates: any[] = []
+
+    // Helper to add unique recommendations
+    const addRec = (action: any, issue: any, relevance: any) => {
+        const key = `${action.id}-${issue.key}`
+        if (!candidates.find(c => c.key === key)) {
+            candidates.push({ key, action, issue, relevance })
         }
-      } catch (e) {
-        setInsight(t('telemetryLinkFailed', locale))
-      } finally {
-        setLoading(false)
-      }
-  }
+    }
+
+    // 1. Check Stalled Issues
+    stalledIssues.slice(0, 3).forEach((issue: any) => {
+        ALL_ACTIONS.forEach(action => {
+            const result = analyzeActionRelevance(action, mapToIssueContext(issue), boardCtx)
+            if (result.relevance === 'critical' || result.relevance === 'recommended') {
+                addRec(action, issue, result)
+            }
+        })
+    })
+
+    // 2. Check Blocked Issues (Red Flag)
+    blockedIssues.slice(0, 2).forEach((issue: any) => {
+         // Usually Red Flag is already applied, so look for solutions like 'Blue Flag' (Priority) or 'Team Orders'
+         // For now, if blocked, maybe radio message?
+         const result = analyzeActionRelevance(ALL_ACTIONS.find(a => a.id === 'radio')!, mapToIssueContext(issue), boardCtx)
+         if (result.relevance !== 'hidden') addRec(ALL_ACTIONS.find(a => a.id === 'radio')!, issue, result)
+    })
+
+    // 3. General WIP checks if list is small
+    if (candidates.length < 3) {
+        agingIssues.slice(0, 3).forEach((issue: any) => {
+             const result = analyzeActionRelevance(ALL_ACTIONS.find(a => a.id === 'undercut')!, mapToIssueContext(issue), boardCtx)
+             if (result.relevance !== 'hidden') addRec(ALL_ACTIONS.find(a => a.id === 'undercut')!, issue, result)
+        })
+    }
+
+    setRecommendations(candidates.sort((a, b) => {
+        const score = (r: string) => r === 'critical' ? 2 : r === 'recommended' ? 1 : 0
+        return score(b.relevance.relevance) - score(a.relevance.relevance)
+    }).slice(0, 5))
+
+  }, [issues, telemetryData, boardType])
+
+  const mapToIssueContext = (issue: any): IssueContext => ({
+    key: issue.key,
+    summary: issue.fields?.summary || issue.summary,
+    status: issue.fields?.status?.name || issue.status,
+    statusCategory: issue.statusCategory || 'indeterminate',
+    issueType: issue.fields?.issuetype?.name || issue.issueType || 'Task',
+    isStalled: issue.isStalled || false,
+    isBlocked: issue.isBlocked || false,
+    hasSubtasks: (issue.fields?.subtasks?.length || 0) > 0,
+    storyPoints: issue.fields?.customfield_10016 || issue.storyPoints,
+    assignee: issue.fields?.assignee?.displayName || issue.assignee,
+    priority: issue.fields?.priority?.name || issue.priority || 'Medium',
+    daysInStatus: issue.daysInStatus || 0, // Assuming this is calculated upstream or defaults to 0
+    linkedIssues: (issue.fields?.issuelinks?.length || 0)
+  })
 
   return (
     <F1Card
       title={t('strategyAssistant', locale)}
-      badge={t('ai', locale)}
+      badge={boardType === 'kanban' ? 'FLOW' : 'STRATEGY'}
       badgeVariant="success"
       fullHeight
       glowColor="purple"
@@ -191,56 +202,27 @@ export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, on
       }
     >
       <AssistantContainer>
-        <InsightPanel>
-            <InsightHeader>
-                {loading ? t('calculating', locale) : t('strategicInsight', locale)}
-            </InsightHeader>
-            <InsightText>
-                {insight}
-            </InsightText>
-        </InsightPanel>
+        <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 1 }}>
+            {recommendations.length > 0 ? t('strategicInsight', locale) : t('raceNormal', locale)}
+        </div>
 
-        <ActionGrid>
-          {isKanban ? (
-            <>
-              <ActionButton $variant="primary" onClick={() => handleAction(t('analyzeCycleTime', locale), t('cycleTime', locale))}>
-                <ActionTitle>{t('analyzeFlow', locale)}</ActionTitle>
-                <ActionDesc>{t('checkCycleLap', locale)}</ActionDesc>
-              </ActionButton>
-              <ActionButton onClick={() => handleAction(t('showWipAging', locale), t('wipAging', locale))}>
-                <ActionTitle>{t('tireDegCheck', locale)}</ActionTitle>
-                <ActionDesc>{t('identifyAgingWip', locale)}</ActionDesc>
-              </ActionButton>
-              <ActionButton onClick={() => handleAction(t('checkThroughput', locale), t('throughput', locale))}>
-                <ActionTitle>{t('flowRate', locale)}</ActionTitle>
-                <ActionDesc>{t('verifyThroughput', locale)}</ActionDesc>
-              </ActionButton>
-              <ActionButton $variant="critical" onClick={() => handleAction(t('identifyBlocked', locale), t('blockers', locale))}>
-                <ActionTitle>{t('redFlags', locale)}</ActionTitle>
-                <ActionDesc>{t('findBlockedOrStalled', locale)}</ActionDesc>
-              </ActionButton>
-            </>
-          ) : (
-             <>
-              <ActionButton $variant="primary" onClick={() => handleAction(t('analyzeSprintVelocity', locale), t('velocity', locale))}>
-                <ActionTitle>{t('analyzePace', locale)}</ActionTitle>
-                <ActionDesc>{t('checkVelocityVsTarget', locale)}</ActionDesc>
-              </ActionButton>
-              <ActionButton onClick={() => handleAction(t('identifyBottlenecks', locale), t('bottlenecks', locale))}>
-                <ActionTitle>{t('trafficReport', locale)}</ActionTitle>
-                <ActionDesc>{t('locateBottlenecks', locale)}</ActionDesc>
-              </ActionButton>
-              <ActionButton onClick={() => handleAction(t('predictCompletion', locale), t('predictions', locale))}>
-                <ActionTitle>{t('racePrediction', locale)}</ActionTitle>
-                <ActionDesc>{t('forecastCompletion', locale)}</ActionDesc>
-              </ActionButton>
-              <ActionButton onClick={() => handleAction(t('showTeamHealth', locale), t('teamHealth', locale))}>
-                <ActionTitle>{t('pitCrewStatus', locale)}</ActionTitle>
-                <ActionDesc>{t('checkTeamLoadBurnout', locale)}</ActionDesc>
-              </ActionButton>
-            </>
-          )}
-        </ActionGrid>
+        <RecommendationList>
+            {recommendations.length === 0 ? (
+                <div style={{ padding: 20, textAlign: 'center', opacity: 0.5, fontSize: 12 }}>
+                    {t('flowOptimalHint', locale)}
+                </div>
+            ) : (
+                recommendations.map((rec) => (
+                    <RecommendationCard key={rec.key} $relevance={rec.relevance.relevance} onClick={() => onBoxBox()}>
+                        <RecHeader>
+                            <RecTitle>{rec.action.name}</RecTitle>
+                            <span style={{ fontSize: 10, opacity: 0.7 }}>{rec.issue.key}</span>
+                        </RecHeader>
+                        <RecReason>{rec.relevance.reason}</RecReason>
+                    </RecommendationCard>
+                ))
+            )}
+        </RecommendationList>
 
         <BoxBoxButton $active={alertActive} onClick={alertActive ? onBoxBox : undefined}>
           {alertActive ? t('boxboxCritical', locale) : t('noCriticalAlerts', locale)}

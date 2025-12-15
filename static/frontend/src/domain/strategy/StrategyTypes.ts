@@ -1,3 +1,7 @@
+/**
+ * Strategy Domain Types
+ * Shared interfaces for the Strategy Assistant.
+ */
 export interface IssueContext {
     key: string;
     summary: string;
