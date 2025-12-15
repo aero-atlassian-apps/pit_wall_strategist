@@ -133,7 +133,7 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
         <F1Card
             title={isKanban ? "Flow Telemetry" : "Sprint Telemetry"}
             fullHeight
-            action={<IconButton onClick={onRefresh} size="sm"><RefreshIcon /></IconButton>}
+            action={<IconButton onClick={onRefresh} size="sm" ariaLabel={t('refresh', locale)}><RefreshIcon /></IconButton>}
         >
             <DeckContainer>
 
@@ -164,13 +164,31 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                     )}
                 </VitalsGrid>
 
-                <Tabs>
-                    <Tab $active={activeTab === 'vitals'} onClick={() => setActiveTab('vitals')}>VITALS</Tab>
-                    <Tab $active={activeTab === 'trends'} onClick={() => setActiveTab('trends')}>TRENDS</Tab>
+                <Tabs role="tablist">
+                    <Tab
+                        $active={activeTab === 'vitals'}
+                        onClick={() => setActiveTab('vitals')}
+                        role="tab"
+                        aria-selected={activeTab === 'vitals'}
+                        aria-controls="panel-vitals"
+                        id="tab-vitals"
+                    >
+                        VITALS
+                    </Tab>
+                    <Tab
+                        $active={activeTab === 'trends'}
+                        onClick={() => setActiveTab('trends')}
+                        role="tab"
+                        aria-selected={activeTab === 'trends'}
+                        aria-controls="panel-trends"
+                        id="tab-trends"
+                    >
+                        TRENDS
+                    </Tab>
                 </Tabs>
 
                 {activeTab === 'vitals' && (
-                    <>
+                    <div role="tabpanel" id="panel-vitals" aria-labelledby="tab-vitals">
                         <SectionHeader>{isKanban ? "Flow Load" : t('workInProgress', locale)}</SectionHeader>
                         <BarContainer>
                             <BarLabelRow>
@@ -202,11 +220,11 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                                 </ProgressBar>
                             </BarContainer>
                         ))}
-                    </>
+                    </div>
                 )}
 
                 {activeTab === 'trends' && trendData && (
-                    <>
+                    <div role="tabpanel" id="panel-trends" aria-labelledby="tab-trends">
                         <SectionHeader>Performance Trends</SectionHeader>
                         <div style={{ marginBottom: 16 }}>
                             <Sparkline
@@ -225,7 +243,7 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                                 invertColors={true}
                             />
                         </div>
-                    </>
+                    </div>
                 )}
 
             </DeckContainer>
