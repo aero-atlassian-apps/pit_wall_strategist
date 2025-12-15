@@ -141,20 +141,20 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                 <VitalsGrid>
                     {isKanban ? (
                         <>
-                            <VitalCard>
-                                <VitalValue>{timingMetrics?.cycleTime?.average || '-'}h</VitalValue>
+                            <VitalCard title={telemetryData?.cycleTimeExplanation}>
+                                <VitalValue>{telemetryData?.cycleTime ? `${telemetryData.cycleTime}h` : '-'}</VitalValue>
                                 <VitalLabel>Avg Cycle Time</VitalLabel>
                             </VitalCard>
-                            <VitalCard>
-                                <VitalValue>{telemetryData?.throughput || trendData?.velocity?.total || '-'}</VitalValue>
+                            <VitalCard title={telemetryData?.throughputExplanation}>
+                                <VitalValue>{telemetryData?.throughput || '-'}</VitalValue>
                                 <VitalLabel>Throughput</VitalLabel>
                             </VitalCard>
                         </>
                     ) : (
                         <>
-                            <VitalCard>
-                                <VitalValue>{timingMetrics?.leadTime?.average || '-'}</VitalValue>
-                                <VitalLabel>Avg Lead Time</VitalLabel>
+                            <VitalCard title={telemetryData?.velocityExplanation}>
+                                <VitalValue>{telemetryData?.velocity ? `${telemetryData.velocity}` : '-'}</VitalValue>
+                                <VitalLabel>Velocity</VitalLabel>
                             </VitalCard>
                             <VitalCard>
                                 <VitalValue>{telemetryData?.completion || 0}%</VitalValue>
