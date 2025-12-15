@@ -60,6 +60,8 @@ export interface TelemetryData {
   wipLimit: number
   wipCurrent: number
   wipExplanation?: string
+  wipConsistency?: number // New: Stability of WIP (lower is better, or just standard deviation)
+  wipConsistencyExplanation?: string
 
   teamBurnout: Record<string, number>
   issuesByStatus: { todo: number; inProgress: number; done: number }

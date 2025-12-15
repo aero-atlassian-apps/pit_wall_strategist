@@ -29,24 +29,30 @@ export async function fetchBoardData(projectKey: string, config: TelemetryConfig
     const boardInfo = await detectBoardType(projectKey);
 
     if (boardInfo.boardType === 'business') {
-        return fetchBusinessProjectData(projectKey);
+        return fetchBusinessProjectData(projectKey, config);
     }
 
     if (boardInfo.boardType === 'kanban') {
-        return fetchKanbanData(boardInfo);
+        return fetchKanbanData(boardInfo, config);
     }
 
     return fetchScrumData(boardInfo, config, projectKey);
 }
 
-async function fetchBusinessProjectData(projectKey: string): Promise<BoardData> {
+async function fetchBusinessProjectData(projectKey: string, config?: TelemetryConfig): Promise<BoardData> {
     const jql = `project = "${projectKey}" ORDER BY updated DESC`;
     // Fetch generic issues for display
     const result = await dataService.searchJqlUserOnly(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels'], 100);
 
     // Fetch historical data for flow metrics (last 30 days completed)
+    const customFields = await fieldDiscoveryService.discoverCustomFields();
+    const storyPointsField = customFields.storyPoints || config?.storyPointsFieldName || 'Story Points';
+
+    const fields = ['status', 'created', 'resolutiondate', 'updated'];
+    if (storyPointsField) fields.push(storyPointsField);
+
     const historyJql = `project = "${projectKey}" AND statusCategory = Done AND updated >= -30d`;
-    const historyResult = await dataService.searchJqlUserOnly(historyJql, ['status', 'created', 'resolutiondate'], 200, ['changelog']);
+    const historyResult = await dataService.searchJqlUserOnly(historyJql, fields, 200, ['changelog']);
 
     return {
         boardType: 'business',
@@ -136,7 +142,7 @@ async function fetchScrumData(boardCtx: BoardContext, config: TelemetryConfig, p
     return { ...boardCtx, sprint: sprintObj, issues, closedSprints, historicalIssues };
 }
 
-async function fetchKanbanData(boardCtx: BoardContext): Promise<BoardData> {
+async function fetchKanbanData(boardCtx: BoardContext, config?: TelemetryConfig): Promise<BoardData> {
     const boardId = boardCtx.boardId!;
     const apiIssues = await dataService.getKanbanBoardIssues(boardId);
 
@@ -146,8 +152,14 @@ async function fetchKanbanData(boardCtx: BoardContext): Promise<BoardData> {
          // Infer project from first issue
          const projectKey = apiIssues[0].fields?.project?.key || apiIssues[0].key.split('-')[0];
          if (projectKey) {
+             const customFields = await fieldDiscoveryService.discoverCustomFields();
+             const storyPointsField = customFields.storyPoints || config?.storyPointsFieldName || 'Story Points';
+
+             const fields = ['status', 'created', 'resolutiondate', 'updated'];
+             if (storyPointsField) fields.push(storyPointsField);
+
              const historyJql = `project = "${projectKey}" AND statusCategory = Done AND updated >= -30d`;
-             const historyRes = await dataService.searchJqlUserOnly(historyJql, ['status', 'created', 'resolutiondate'], 200, ['changelog']);
+             const historyRes = await dataService.searchJqlUserOnly(historyJql, fields, 200, ['changelog']);
              if (historyRes.ok) historicalIssues = historyRes.issues;
          }
     }
