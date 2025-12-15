@@ -49,12 +49,16 @@ export interface TelemetryData {
   velocity?: number // Average velocity (Scrum)
   velocityDelta?: number // Only relevant for Scrum
   velocityExplanation?: string // Why is velocity 0 or missing?
+  velocitySource?: string
+  velocityWindow?: string
 
   throughput?: number // Items per week/sprint
   throughputExplanation?: string
+  throughputWindow?: string
 
   cycleTime?: number // Average cycle time in hours
   cycleTimeExplanation?: string
+  cycleTimeWindow?: string
 
   wipLoad: number
   wipLimit: number

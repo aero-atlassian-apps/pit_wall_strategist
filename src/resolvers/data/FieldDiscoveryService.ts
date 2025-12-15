@@ -18,16 +18,16 @@ export class FieldDiscoveryService {
             const fields: any[] = await response.json();
 
             fieldCache = {
-                storyPoints: this.findFieldByName(fields, ['Story Points', 'Story point estimate', 'Estimation']) || 'customfield_10016',
-                sprint: this.findFieldByName(fields, ['Sprint']) || 'customfield_10020',
-                epicLink: this.findFieldByName(fields, ['Epic Link', 'Parent Link']),
-                flagged: this.findFieldByName(fields, ['Flagged', 'Flag'])
+                storyPoints: this.findFieldByName(fields, ['Story Points', 'Story point estimate', 'Estimation']) || null,
+                sprint: this.findFieldByName(fields, ['Sprint']) || null,
+                epicLink: this.findFieldByName(fields, ['Epic Link', 'Parent Link']) || null,
+                flagged: this.findFieldByName(fields, ['Flagged', 'Flag']) || null
             };
             return fieldCache;
         } catch (error) {
             return {
-                storyPoints: 'customfield_10016',
-                sprint: 'customfield_10020'
+                storyPoints: null,
+                sprint: null
             };
         }
     }

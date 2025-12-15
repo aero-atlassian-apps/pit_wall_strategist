@@ -48,13 +48,9 @@ export async function getProjectStatusMap(projectKey: string): Promise<StatusMap
     } catch {}
   }
 
-  // Fallback: no entries → minimal defaults
+  // If no entries, return empty map; downstream will use pattern inference
   if (!entries.length) {
-    entries = [
-      { id: 'new', name: 'To Do', category: 'new' },
-      { id: 'inprogress', name: 'In Progress', category: 'indeterminate' },
-      { id: 'done', name: 'Done', category: 'done' }
-    ]
+    entries = []
   }
 
   const byId: Record<string, StatusEntry> = {}

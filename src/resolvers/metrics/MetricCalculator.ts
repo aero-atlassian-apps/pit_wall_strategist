@@ -2,6 +2,7 @@ import type { BoardData, TelemetryConfig, TelemetryData, Sprint } from '../../ty
 import type { JiraIssue } from '../../types/jira';
 import { IssueCategorizer } from '../issue/IssueCategorizer';
 import { fieldDiscoveryService } from '../data/FieldDiscoveryService';
+import { JiraDataService } from '../data/JiraDataService';
 
 export class MetricCalculator {
     constructor(private categorizer: IssueCategorizer, private config: TelemetryConfig) {}
@@ -52,7 +53,7 @@ export class MetricCalculator {
         // But user says: "Velocity... MUST SHOW REAL NUMBERS".
         // We will calculate Velocity for Scrum boards using sprints, and fallback for others or if sprints missing.
 
-        const velocityResult = this.calculateVelocity(boardData.closedSprints || [], boardData.historicalIssues || [], storyPointsField, boardData.boardType);
+        const velocityResult = await this.calculateVelocity(boardData.closedSprints || [], boardData.historicalIssues || [], storyPointsField, boardData.boardType);
         velocity = velocityResult.velocity;
         velocityExplanation = velocityResult.explanation;
 
@@ -65,11 +66,13 @@ export class MetricCalculator {
         const cycleTimeResult = this.calculateCycleTime(boardData.historicalIssues || []);
         const cycleTime = cycleTimeResult.avg;
         const cycleTimeExplanation = cycleTimeResult.explanation;
+        const cycleTimeWindow = cycleTimeResult.window;
 
         // Throughput (Flow)
         const throughputResult = this.calculateThroughput(boardData.historicalIssues || [], boardData.boardType);
         const throughput = throughputResult.rate;
         const throughputExplanation = throughputResult.explanation;
+        const throughputWindow = throughputResult.window;
 
         const healthStatus = this.determineHealthStatus(boardData.boardType, velocityDelta, wipLoad);
 
@@ -80,10 +83,14 @@ export class MetricCalculator {
             velocity,
             velocityDelta,
             velocityExplanation,
+            velocitySource: velocityResult.source,
+            velocityWindow: velocityResult.window,
             cycleTime,
             cycleTimeExplanation,
+            cycleTimeWindow,
             throughput,
             throughputExplanation,
+            throughputWindow,
             wipLoad,
             wipLimit,
             wipCurrent,
@@ -96,45 +103,87 @@ export class MetricCalculator {
         };
     }
 
-    private calculateVelocity(closedSprints: Sprint[], historicalIssues: JiraIssue[], storyPointsField: string | null, boardType: string): { velocity: number, explanation?: string } {
-        // Primary: Sprint-based Velocity
+    private async calculateVelocity(closedSprints: Sprint[], historicalIssues: JiraIssue[], storyPointsField: string | null, boardType: string): Promise<{ velocity: number, explanation?: string, source?: string, window?: string }> {
+        // Primary: Sprint-based Velocity (exact per-sprint aggregation)
         if (closedSprints && closedSprints.length > 0) {
-            // Use the points field if available, otherwise count issues (fallback handled in reduce)
-            const sprintPoints: number[] = [];
-            // To be accurate without complex sprint field parsing, we can't easily map historical issues to sprints 1:1 reliably
-            // without the 'sprint' field in 'historicalIssues' which we might not have fully parsed.
-            // BUT, we can use the "Pseudo Velocity" logic even here if we can't map.
-            // However, let's try to do it right:
-
-            // If we have closed sprints, we *could* fetch their reports, but we are limited to 'historicalIssues' context here.
-            // Let's use the "Average Completed Points in Time Window" method if we can't map sprints.
-            // Actually, "Velocity" = Average per Sprint.
-            // If we have 5 closed sprints, we assume they cover approx 10 weeks (if 2 weeks each).
-
-            // Let's count TOTAL done points in 'historicalIssues' (which should be from the sprint timeframe)
-            // and divide by number of sprints.
-            const doneIssues = historicalIssues.filter(i => this.categorizer.getStatusCategory(i) === this.config.statusCategories.done);
-            if (doneIssues.length > 0) {
-                const totalPoints = doneIssues.reduce((sum, i) => {
+            // Backward-compatible path: if historical issues are present, aggregate per sprint from them
+            if (historicalIssues && historicalIssues.length > 0) {
+                const doneIssuesHist = historicalIssues.filter(i => this.categorizer.getStatusCategory(i) === this.config.statusCategories.done);
+                const totalPointsHist = doneIssuesHist.reduce((sum, i) => {
                      const val = storyPointsField ? (i.fields as any)[storyPointsField] : 1;
                      return sum + (typeof val === 'number' ? val : 1);
                 }, 0);
-
-                const avgVelocity = Math.round(totalPoints / closedSprints.length);
+                const avgVelocity = Math.round(totalPointsHist / closedSprints.length);
                 return {
                     velocity: avgVelocity,
-                    explanation: `Avg points per sprint (based on last ${closedSprints.length} sprints).`
+                    explanation: `completed issues over last ${closedSprints.length} sprints`,
+                    source: 'historical:issuesPerSprint',
+                    window: `${closedSprints.length} closed sprints`
                 };
             }
+            const dataService = new JiraDataService();
+            const perSprintPoints: number[] = [];
+
+            for (const s of closedSprints) {
+                const fields: string[] = ['status','resolutiondate'];
+                if (storyPointsField) fields.push(storyPointsField);
+                const issues = await dataService.getSprintIssues(s.id, fields, ['changelog'], 500);
+
+                const endStr = (s.completeDate || s.endDate);
+                const end = endStr ? new Date(endStr).getTime() : null;
+                const startStr = s.startDate;
+                const start = startStr ? new Date(startStr).getTime() : null;
+
+                let sprintCompletedPoints = 0;
+                for (const i of issues) {
+                    const cat = this.categorizer.getStatusCategory(i);
+                    if (cat !== this.config.statusCategories.done) continue;
+                    const resolved = i.fields.resolutiondate ? new Date(i.fields.resolutiondate).getTime() : null;
+                    if (resolved && end && start) {
+                        if (resolved >= start && resolved <= end) {
+                            const val = storyPointsField ? (i.fields as any)[storyPointsField] : 1;
+                            sprintCompletedPoints += (typeof val === 'number' ? val : 1);
+                        }
+                    } else {
+                        const val = storyPointsField ? (i.fields as any)[storyPointsField] : 1;
+                        sprintCompletedPoints += (typeof val === 'number' ? val : 1);
+                    }
+                }
+                perSprintPoints.push(sprintCompletedPoints);
+            }
+
+            const valid = perSprintPoints.filter(n => typeof n === 'number');
+            if (valid.length && valid.reduce((a,b)=>a+b,0) > 0) {
+                const avgVelocity = Math.round(valid.reduce((a,b)=>a+b,0) / valid.length);
+                return {
+                    velocity: avgVelocity,
+                    explanation: `Average completed ${storyPointsField ? 'points' : 'issues'} across ${closedSprints.length} closed sprints.`,
+                    source: 'agile:sprintIssues',
+                    window: `${closedSprints.length} closed sprints`
+                };
+            }
+            // Fallback: use historicalIssues per-sprint aggregation if sprint fetch yielded no data
+            const doneIssuesHist = historicalIssues.filter(i => this.categorizer.getStatusCategory(i) === this.config.statusCategories.done);
+            const totalPointsHist = doneIssuesHist.reduce((sum, i) => {
+                 const val = storyPointsField ? (i.fields as any)[storyPointsField] : 1;
+                 return sum + (typeof val === 'number' ? val : 1);
+            }, 0);
+            const avgVelocity = closedSprints.length ? Math.round(totalPointsHist / closedSprints.length) : 0;
+            return {
+                velocity: avgVelocity,
+                explanation: `Average completed ${storyPointsField ? 'points' : 'issues'} over last ${closedSprints.length} sprints (fallback).`,
+                source: 'historical:issuesPerSprint',
+                window: `${closedSprints.length} closed sprints`
+            };
         }
 
-        // Fallback: Pseudo-Velocity (Time-based)
-        // If no closed sprints (Kanban/Business) or data missing.
-        // Calculate "Points/Items per 2 Weeks" based on historical data.
+        // If no closed sprints: Scrum returns 0 with explicit explanation; Kanban/Business uses pseudo-velocity
+        if (boardType === 'scrum') {
+            return { velocity: 0, explanation: "No closed sprints found to calculate velocity.", source: 'none', window: 'none' };
+        }
         const doneIssues = historicalIssues.filter(i => this.categorizer.getStatusCategory(i) === this.config.statusCategories.done);
-
         if (doneIssues.length === 0) {
-             return { velocity: 0, explanation: "No completed issues found in recent history." };
+             return { velocity: 0, explanation: "No completed issues found in recent history.", source: 'historical:resolutiondate', window: 'normalized to 14 days' };
         }
 
         // Determine time window of these issues
@@ -157,17 +206,19 @@ export class MetricCalculator {
         const unit = storyPointsField ? "points" : "issues";
         return {
             velocity: velocity,
-            explanation: `Estimated ${unit} per 2 weeks (Pseudo-Velocity).`
+            explanation: `Estimated ${unit} per 2 weeks (Pseudo-Velocity).`,
+            source: 'historical:resolutiondate',
+            window: 'normalized to 14 days'
         };
     }
 
-    private calculateCycleTime(historicalIssues: JiraIssue[]): { avg: number, explanation?: string } {
+    private calculateCycleTime(historicalIssues: JiraIssue[]): { avg: number, explanation?: string, window?: string } {
         // Try to use changelog first
         const issuesWithHistory = historicalIssues.filter(i => i.changelog && i.changelog.histories && i.changelog.histories.length > 0);
         const completedIssues = historicalIssues.filter(i => this.categorizer.getStatusCategory(i) === this.config.statusCategories.done);
 
         if (completedIssues.length === 0) {
-            return { avg: 0, explanation: "No completed issues to analyze." };
+            return { avg: 0, explanation: "No completed issues to analyze.", window: "none" };
         }
 
         let totalDuration = 0;
@@ -175,31 +226,43 @@ export class MetricCalculator {
         let usedChangelog = false;
 
         // Method 1: Changelog (Accurate Cycle Time)
-        // We look for In Progress -> Done.
+        // Time from first statusCategory 'indeterminate' entry to resolution
         if (issuesWithHistory.length > 0) {
             let changelogCount = 0;
             let changelogDuration = 0;
 
+            const classify = (name: string): 'new'|'indeterminate'|'done' => {
+                const n = (name || '').toLowerCase();
+                if (n.includes('done') || n.includes('closed') || n.includes('resolved') || n.includes('complete') || n.includes('finished') || n.includes('released')) return 'done'
+                if (n.includes('to do') || n.includes('todo') || n.includes('open') || n.includes('backlog') || n.includes('new')) return 'new'
+                return 'indeterminate'
+            }
+
             for (const issue of issuesWithHistory) {
-                // Skip if not Done
-                 if (this.categorizer.getStatusCategory(issue) !== this.config.statusCategories.done) continue;
+                if (this.categorizer.getStatusCategory(issue) !== this.config.statusCategories.done) continue;
 
                 const histories = issue.changelog!.histories!;
                 histories.sort((a, b) => new Date(a.created!).getTime() - new Date(b.created!).getTime());
 
-                // Find "Done" timestamp
                 const resolved = issue.fields.resolutiondate ? new Date(issue.fields.resolutiondate).getTime() : new Date(issue.fields.updated!).getTime();
 
-                // Find first transition that suggests start of work (not To Do)
-                // Heuristic: First transition in history often implies moving out of backlog/creation state
-                // provided the history doesn't start with creation only.
-                const firstTransition = histories[0];
-                if (firstTransition) {
-                     const start = new Date(firstTransition.created!).getTime();
-                     if (resolved > start) {
-                         changelogDuration += (resolved - start);
-                         changelogCount++;
-                     }
+                let startTs: number | null = null;
+                let lastCat: 'new'|'indeterminate'|'done' = 'new';
+                for (const h of histories) {
+                    const statusChange = (h.items || []).find((it: any) => it.field === 'status');
+                    if (!statusChange) continue;
+                    const toCat = classify(statusChange.toString || '');
+                    const fromCat = classify(statusChange.fromString || '');
+                    const t = new Date(h.created!).getTime();
+                    if (lastCat === 'new' && toCat === 'indeterminate' && startTs === null) {
+                        startTs = t;
+                    }
+                    lastCat = toCat;
+                }
+
+                if (startTs && resolved > startTs) {
+                    changelogDuration += (resolved - startTs);
+                    changelogCount++;
                 }
             }
 
@@ -223,7 +286,7 @@ export class MetricCalculator {
              }
         }
 
-        if (count === 0) return { avg: 0, explanation: "Insufficient data." };
+        if (count === 0) return { avg: 0, explanation: "Insufficient data.", window: "none" };
 
         const avgHours = totalDuration / count / (1000 * 60 * 60);
         const avgDays = Math.round(avgHours / 24 * 10) / 10;
@@ -238,15 +301,16 @@ export class MetricCalculator {
 
         return {
             avg: Math.round(avgHours),
-            explanation
+            explanation,
+            window: `${count} completed issues`
         };
     }
 
-    private calculateThroughput(historicalIssues: JiraIssue[], boardType: string): { rate: number, explanation?: string } {
+    private calculateThroughput(historicalIssues: JiraIssue[], boardType: string): { rate: number, explanation?: string, window?: string } {
         const doneIssues = historicalIssues.filter(i => this.categorizer.getStatusCategory(i) === this.config.statusCategories.done);
 
         if (doneIssues.length === 0) {
-            return { rate: 0, explanation: "No completed issues found." };
+            return { rate: 0, explanation: "No completed issues found.", window: "none" };
         }
 
         const dates = doneIssues.map(i => i.fields.resolutiondate ? new Date(i.fields.resolutiondate).getTime() : new Date(i.fields.updated!).getTime());
@@ -259,13 +323,13 @@ export class MetricCalculator {
         // If very short window (e.g. 1 day), normalized throughput might be high.
         // If we have < 7 days data, just show the count.
         if (diffDays < 7) {
-             return { rate: doneIssues.length, explanation: `Total items completed in last ${Math.round(diffDays)} days.` };
+             return { rate: doneIssues.length, explanation: `Total items completed in last ${Math.round(diffDays)} days.`, window: `${Math.round(diffDays)} days` };
         }
 
         const weeks = diffDays / 7;
         const rate = Math.round((doneIssues.length / weeks) * 10) / 10;
 
-        return { rate, explanation: `Avg items/week (over ${Math.round(diffDays)} days).` };
+        return { rate, explanation: `Average items per week (over ${Math.round(diffDays)} days).`, window: `${Math.round(diffDays)} days` };
     }
 
     private calculateWipConsistency(historicalIssues: JiraIssue[], currentWip: number): { consistency: number, explanation?: string } {

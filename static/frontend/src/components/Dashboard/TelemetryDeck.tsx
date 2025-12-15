@@ -131,7 +131,7 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
 
     return (
         <F1Card
-            title={isKanban ? "Flow Telemetry" : "Sprint Telemetry"}
+            title={isKanban ? t('flowTelemetry', locale) : t('sprintTelemetry', locale)}
             fullHeight
             action={<IconButton onClick={onRefresh} size="sm" ariaLabel={t('refresh', locale)}><RefreshIcon /></IconButton>}
         >
@@ -141,24 +141,24 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                 <VitalsGrid>
                     {isKanban ? (
                         <>
-                            <VitalCard title={telemetryData?.cycleTimeExplanation}>
+                            <VitalCard title={`${telemetryData?.cycleTimeExplanation || ''}${telemetryData?.cycleTimeWindow ? `\n${t('window', locale)}: ${telemetryData.cycleTimeWindow}` : ''}`}>
                                 <VitalValue>{telemetryData?.cycleTime ? `${telemetryData.cycleTime}h` : '-'}</VitalValue>
-                                <VitalLabel>Avg Cycle Time</VitalLabel>
+                                <VitalLabel>{t('avgCycleTime', locale)}</VitalLabel>
                             </VitalCard>
-                            <VitalCard title={telemetryData?.throughputExplanation}>
+                            <VitalCard title={`${telemetryData?.throughputExplanation || ''}${telemetryData?.throughputWindow ? `\n${t('window', locale)}: ${telemetryData.throughputWindow}` : ''}`}>
                                 <VitalValue>{telemetryData?.throughput || '-'}</VitalValue>
-                                <VitalLabel>Throughput</VitalLabel>
+                                <VitalLabel>{t('throughput', locale)}</VitalLabel>
                             </VitalCard>
                         </>
                     ) : (
                         <>
-                            <VitalCard title={telemetryData?.velocityExplanation}>
+                            <VitalCard title={`${telemetryData?.velocityExplanation || ''}${telemetryData?.velocitySource ? `\n${t('source', locale)}: ${telemetryData.velocitySource}` : ''}${telemetryData?.velocityWindow ? `\n${t('window', locale)}: ${telemetryData.velocityWindow}` : ''}`}>
                                 <VitalValue>{telemetryData?.velocity ? `${telemetryData.velocity}` : '-'}</VitalValue>
-                                <VitalLabel>Velocity</VitalLabel>
+                                <VitalLabel>{t('velocity', locale)}</VitalLabel>
                             </VitalCard>
                             <VitalCard>
                                 <VitalValue>{telemetryData?.completion || 0}%</VitalValue>
-                                <VitalLabel>Completion</VitalLabel>
+                                <VitalLabel>{t('completion', locale)}</VitalLabel>
                             </VitalCard>
                         </>
                     )}
@@ -173,7 +173,7 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                         aria-controls="panel-vitals"
                         id="tab-vitals"
                     >
-                        VITALS
+                        {t('vitals', locale)}
                     </Tab>
                     <Tab
                         $active={activeTab === 'trends'}
@@ -183,16 +183,16 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                         aria-controls="panel-trends"
                         id="tab-trends"
                     >
-                        TRENDS
+                        {t('trends', locale)}
                     </Tab>
                 </Tabs>
 
                 {activeTab === 'vitals' && (
                     <div role="tabpanel" id="panel-vitals" aria-labelledby="tab-vitals">
-                        <SectionHeader>{isKanban ? "Flow Load" : t('workInProgress', locale)}</SectionHeader>
+                        <SectionHeader>{isKanban ? t('flowLoad', locale) : t('workInProgress', locale)}</SectionHeader>
                         <BarContainer>
                             <BarLabelRow>
-                                <span>{isKanban ? "WIP Utilization" : "Sprint Load"}</span>
+                                <span>{isKanban ? t('wipUtilization', locale) : t('sprintLoad', locale)}</span>
                                 <BarValues style={{ color: getWipColor(telemetryData?.wipLoad || 0) }}>
                                     {telemetryData?.wipCurrent || 0}/{telemetryData?.wipLimit || 0}
                                 </BarValues>
@@ -205,7 +205,7 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                             </ProgressBar>
                         </BarContainer>
 
-                        <SectionHeader>Team Burnout</SectionHeader>
+                        <SectionHeader>{t('teamBurnout', locale)}</SectionHeader>
                         {Object.entries(telemetryData?.teamBurnout || {}).map(([name, value]: [string, any]) => (
                             <BarContainer key={name}>
                                 <BarLabelRow>
@@ -225,11 +225,11 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
 
                 {activeTab === 'trends' && trendData && (
                     <div role="tabpanel" id="panel-trends" aria-labelledby="tab-trends">
-                        <SectionHeader>Performance Trends</SectionHeader>
+                        <SectionHeader>{t('performanceTrends', locale)}</SectionHeader>
                         <div style={{ marginBottom: 16 }}>
                             <Sparkline
                                 data={trendData.wip?.data}
-                                label="WIP Consistency"
+                                label={t('wipConsistency', locale)}
                                 direction={trendData.wip?.direction}
                                 change={trendData.wip?.change}
                             />
@@ -237,7 +237,7 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                         <div>
                             <Sparkline
                                 data={trendData.velocity?.data}
-                                label="Velocity"
+                                label={t('velocity', locale)}
                                 direction={trendData.velocity?.direction}
                                 change={trendData.velocity?.change}
                                 invertColors={true}

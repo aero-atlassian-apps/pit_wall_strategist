@@ -8,6 +8,7 @@
  */
 
 import React from 'react'
+import { t } from '../../i18n'
 import styled, { keyframes } from 'styled-components'
 
 const pulse = keyframes`
@@ -155,13 +156,14 @@ interface SprintHealthGaugeProps {
 }
 
 export function SprintHealthGauge({ sprintHealth, loading }: SprintHealthGaugeProps) {
+    const locale = (window as any).__PWS_LOCALE || 'en'
     if (loading || !sprintHealth) {
         return (
             <Container>
                 <Header>
-                    <Title>🏥 Sprint Health</Title>
+                    <Title>🏥 {t('sprintHealth', locale)}</Title>
                 </Header>
-                <Message style={{ color: '#64748B' }}>Calculating prediction...</Message>
+                <Message style={{ color: '#64748B' }}>{t('calculatingPrediction', locale)}</Message>
             </Container>
         )
     }
@@ -172,7 +174,7 @@ export function SprintHealthGauge({ sprintHealth, loading }: SprintHealthGaugePr
     return (
         <Container>
             <Header>
-                <Title>🏥 Sprint Health Predictor</Title>
+                <Title>🏥 {t('sprintHealthPredictor', locale)}</Title>
                 <FlagBadge $status={status}>{flagLabel}</FlagBadge>
             </Header>
 
@@ -185,17 +187,17 @@ export function SprintHealthGauge({ sprintHealth, loading }: SprintHealthGaugePr
             <Recommendation>💡 {recommendation}</Recommendation>
 
             <FactorsRow>
-                <Factor $value={factors.velocityFactor} title="Velocity vs History">
-                    ⚡ Pace: {Math.round(factors.velocityFactor * 100)}%
+                <Factor $value={factors.velocityFactor} title={t('velocityVsHistory', locale)}>
+                    ⚡ {t('pace', locale)}: {Math.round(factors.velocityFactor * 100)}%
                 </Factor>
-                <Factor $value={factors.timeFactor} title="Time Progress">
-                    ⏱️ Time: {Math.round(factors.timeFactor * 100)}%
+                <Factor $value={factors.timeFactor} title={t('timeProgress', locale)}>
+                    ⏱️ {t('time', locale)}: {Math.round(factors.timeFactor * 100)}%
                 </Factor>
-                <Factor $value={factors.stalledFactor} title="Stall-Free">
-                    🚦 Flow: {Math.round(factors.stalledFactor * 100)}%
+                <Factor $value={factors.stalledFactor} title={t('stallFree', locale)}>
+                    🚦 {t('flow', locale)}: {Math.round(factors.stalledFactor * 100)}%
                 </Factor>
-                <Factor $value={factors.scopeFactor} title="WIP Balance">
-                    📦 Scope: {Math.round(factors.scopeFactor * 100)}%
+                <Factor $value={factors.scopeFactor} title={t('wipBalance', locale)}>
+                    📦 {t('scope', locale)}: {Math.round(factors.scopeFactor * 100)}%
                 </Factor>
             </FactorsRow>
         </Container>

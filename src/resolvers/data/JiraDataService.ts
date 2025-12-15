@@ -60,6 +60,19 @@ export class JiraDataService {
       return [];
   }
 
+  async getSprintIssues(sprintId: number, fields: string[] = ['summary','status','assignee','issuetype','updated','created','resolutiondate'], expand?: string[], limit: number = 500): Promise<JiraIssue[]> {
+      const params: string[] = [`maxResults=${limit}`]
+      if (fields && fields.length) params.push(`fields=${encodeURIComponent(fields.join(','))}`)
+      if (expand && expand.length) params.push(`expand=${encodeURIComponent(expand.join(','))}`)
+      const url = route`/rest/agile/1.0/sprint/${sprintId}/issue?${params.join('&')}`
+      const response = await api.asApp().requestJira(url, { headers: { Accept: 'application/json' } })
+      if (response.ok) {
+          const data = await response.json()
+          return data.issues || []
+      }
+      return []
+  }
+
   async getBoardConfiguration(boardId: number) {
        const response = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/configuration`, { headers: { Accept: 'application/json' } });
        if (response.ok) return await response.json();

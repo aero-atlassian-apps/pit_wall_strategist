@@ -46,7 +46,7 @@ async function fetchBusinessProjectData(projectKey: string, config?: TelemetryCo
 
     // Fetch historical data for flow metrics (last 30 days completed)
     const customFields = await fieldDiscoveryService.discoverCustomFields();
-    const storyPointsField = customFields.storyPoints || config?.storyPointsFieldName || 'Story Points';
+    const storyPointsField = customFields.storyPoints || null;
 
     const fields = ['status', 'created', 'resolutiondate', 'updated'];
     if (storyPointsField) fields.push(storyPointsField);
@@ -79,7 +79,7 @@ async function fetchScrumData(boardCtx: BoardContext, config: TelemetryConfig, p
 
         // Discover story points field to fetch it
         const customFields = await fieldDiscoveryService.discoverCustomFields();
-        const storyPointsField = customFields.storyPoints || config.storyPointsFieldName;
+        const storyPointsField = customFields.storyPoints || null;
 
         const fieldsToFetch = ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate'];
         if (storyPointsField) {
@@ -152,11 +152,11 @@ async function fetchKanbanData(boardCtx: BoardContext, config?: TelemetryConfig)
          // Infer project from first issue
          const projectKey = apiIssues[0].fields?.project?.key || apiIssues[0].key.split('-')[0];
          if (projectKey) {
-             const customFields = await fieldDiscoveryService.discoverCustomFields();
-             const storyPointsField = customFields.storyPoints || config?.storyPointsFieldName || 'Story Points';
+            const customFields = await fieldDiscoveryService.discoverCustomFields();
+            const storyPointsField = customFields.storyPoints || null;
 
-             const fields = ['status', 'created', 'resolutiondate', 'updated'];
-             if (storyPointsField) fields.push(storyPointsField);
+            const fields = ['status', 'created', 'resolutiondate', 'updated'];
+            if (storyPointsField) fields.push(storyPointsField);
 
              const historyJql = `project = "${projectKey}" AND statusCategory = Done AND updated >= -30d`;
              const historyRes = await dataService.searchJqlUserOnly(historyJql, fields, 200, ['changelog']);

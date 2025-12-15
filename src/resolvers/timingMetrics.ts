@@ -125,7 +125,7 @@ export function mapStatusToColumn(statusName?: string, columns?: Array<{ name: s
 
 function approximateCategoryFromStatus(statusName?: string, statusMap?: any, issueTypeName?: string): 'new' | 'indeterminate' | 'done' { if (!statusName) return 'new'; const mapped = resolveCategoryForIssue(statusMap || null, statusName, issueTypeName); if (mapped) return mapped; const name = statusName.toLowerCase(); if (name.includes('done') || name.includes('closed') || name.includes('resolved') || name.includes('complete') || name.includes('finished') || name.includes('released')) return 'done'; if (name.includes('to do') || name.includes('todo') || name.includes('open') || name.includes('backlog') || name.includes('new') || name.includes('created')) return 'new'; return 'indeterminate' }
 
-function getDefaultCycleTime(): SectorTimes { return { 'TO DO': { name: 'TO DO', category: 'new', avgHours: 24, status: 'optimal' }, 'IN PROGRESS': { name: 'IN PROGRESS', category: 'indeterminate', avgHours: 48, status: 'warning' }, 'DONE': { name: 'DONE', category: 'done', avgHours: 4, status: 'optimal' } } }
+function getDefaultCycleTime(): SectorTimes { return {} }
 
 export function evaluateSectorPerformance(sectorTimes: SectorTimes, thresholds: any = {}) { const defaultThresholds = { new: { warning: 24, critical: 48 }, indeterminate: { warning: 40, critical: 72 }, done: { warning: 8, critical: 24 } }; const limits = { ...defaultThresholds, ...thresholds }; Object.keys(sectorTimes).forEach((sector: any) => { const data = (sectorTimes as any)[sector]; const limit = limits[data.category]; if (data.avgHours >= limit.critical) data.status = 'critical'; else if (data.avgHours >= limit.warning) data.status = 'warning'; else data.status = 'optimal' }); return sectorTimes }
 
