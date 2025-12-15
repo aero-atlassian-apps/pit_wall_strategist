@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { t } from '../../i18n'
 import styled, { keyframes } from 'styled-components'
 
 const pulse = keyframes`
@@ -177,6 +178,7 @@ function getStage(issue: Issue): 'todo' | 'dev' | 'testing' | 'done' {
 }
 
 export default function TestingProgressPanel({ issues }: TestingProgressProps) {
+    const locale = (window as any).__PWS_LOCALE || 'en'
     const stages = useMemo(() => {
         const counts = { todo: 0, dev: 0, testing: 0, done: 0 }
 
@@ -198,11 +200,11 @@ export default function TestingProgressPanel({ issues }: TestingProgressProps) {
         return (
             <Container>
                 <Header>
-                    <Title>🏁 Pit Lane Progress</Title>
-                    <Badge>QA Status</Badge>
+                    <Title>🏁 {t('pitLaneProgress', locale)}</Title>
+                    <Badge>{t('qaStatus', locale)}</Badge>
                 </Header>
                 <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>
-                    No issues to track
+                    {t('noIssuesToTrack', locale)}
                 </div>
             </Container>
         )
@@ -213,32 +215,32 @@ export default function TestingProgressPanel({ issues }: TestingProgressProps) {
     return (
         <Container>
             <Header>
-                <Title>🏁 Pit Lane Progress</Title>
-                <Badge>QA Status</Badge>
+                <Title>🏁 {t('pitLaneProgress', locale)}</Title>
+                <Badge>{t('qaStatus', locale)}</Badge>
             </Header>
 
             <StagesContainer>
                 <Stage $active={false} $complete={false}>
-                    <StageName $active={false} $complete={false}>Garage</StageName>
+                    <StageName $active={false} $complete={false}>{t('garage', locale)}</StageName>
                     <StageCount $active={false} $complete={false}>{stages.todo}</StageCount>
                 </Stage>
                 <Stage $active={stages.dev > 0} $complete={false}>
-                    <StageName $active={stages.dev > 0} $complete={false}>On Track</StageName>
+                    <StageName $active={stages.dev > 0} $complete={false}>{t('onTrack', locale)}</StageName>
                     <StageCount $active={stages.dev > 0} $complete={false}>{stages.dev}</StageCount>
                 </Stage>
                 <Stage $active={stages.testing > 0} $complete={false}>
-                    <StageName $active={stages.testing > 0} $complete={false}>Pit Stop</StageName>
+                    <StageName $active={stages.testing > 0} $complete={false}>{t('pitStop', locale)}</StageName>
                     <StageCount $active={stages.testing > 0} $complete={false}>{stages.testing}</StageCount>
                 </Stage>
                 <Stage $active={false} $complete={stages.done > 0}>
-                    <StageName $active={false} $complete={stages.done > 0}>Finish</StageName>
+                    <StageName $active={false} $complete={stages.done > 0}>{t('finish', locale)}</StageName>
                     <StageCount $active={false} $complete={stages.done > 0}>{stages.done}</StageCount>
                 </Stage>
             </StagesContainer>
 
             <OverallProgress>
                 <ProgressLabel>
-                    <ProgressText>Race Completion</ProgressText>
+                    <ProgressText>{t('raceCompletion', locale)}</ProgressText>
                     <ProgressPercent $percent={stages.percentComplete}>
                         {stages.percentComplete}% ({stages.done}/{stages.total})
                     </ProgressPercent>
@@ -250,13 +252,13 @@ export default function TestingProgressPanel({ issues }: TestingProgressProps) {
 
             {hasTestingBacklog && (
                 <TestingAlert $hasIssues={true}>
-                    ⚠️ {stages.testing} issues in Pit Stop (Testing) - QA bottleneck detected
+                    ⚠️ {stages.testing} {t('issues', locale)} {t('inPitStopTesting', locale)} - {t('qaBottleneckDetected', locale)}
                 </TestingAlert>
             )}
 
             {stages.percentComplete === 100 && (
                 <TestingAlert $hasIssues={false}>
-                    🏆 Checkered Flag! All issues complete!
+                    🏆 {t('checkeredFlagAllDone', locale)}
                 </TestingAlert>
             )}
         </Container>

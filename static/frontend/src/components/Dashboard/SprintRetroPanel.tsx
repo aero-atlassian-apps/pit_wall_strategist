@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { t } from '../../i18n'
 import styled, { keyframes } from 'styled-components'
 
 const fadeIn = keyframes`from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); }`
@@ -181,6 +182,7 @@ export default function SprintRetroPanel({
         avgCycleTime: 4.1
     }
 }: SprintRetroProps) {
+    const locale = (window as any).__PWS_LOCALE || 'en'
     const analysis = useMemo(() => {
         const velocityDelta = currentSprint.velocity - previousSprint.velocity
         const velocityPercent = previousSprint.velocity > 0
@@ -202,25 +204,25 @@ export default function SprintRetroPanel({
         const insights: { text: string; type: 'good' | 'bad' | 'neutral' }[] = []
 
         if (velocityDelta > 0) {
-            insights.push({ text: `Velocity up ${velocityPercent}% from last sprint`, type: 'good' })
+            insights.push({ text: `${t('velocity', locale)} ${t('up', locale)} ${velocityPercent}% ${t('fromLastSprint', locale)}`, type: 'good' })
         } else if (velocityDelta < 0) {
-            insights.push({ text: `Velocity down ${Math.abs(velocityPercent)}% from last sprint`, type: 'bad' })
+            insights.push({ text: `${t('velocity', locale)} ${t('down', locale)} ${Math.abs(velocityPercent)}% ${t('fromLastSprint', locale)}`, type: 'bad' })
         }
 
         if (cycleTimeImproved) {
-            insights.push({ text: `Cycle time improved by ${cycleTimeDelta.toFixed(1)} days`, type: 'good' })
+            insights.push({ text: `${t('cycleTime', locale)} ${t('improvedByDays', locale)} ${cycleTimeDelta.toFixed(1)} ${t('days', locale)}`, type: 'good' })
         }
 
         if (currentSprint.carryOver > previousSprint.carryOver) {
-            insights.push({ text: `More carry-over than last sprint (${currentSprint.carryOver} vs ${previousSprint.carryOver})`, type: 'bad' })
+            insights.push({ text: `${t('moreCarryOverThanLastSprint', locale)} (${currentSprint.carryOver} ${t('vs', locale)} ${previousSprint.carryOver})`, type: 'bad' })
         } else if (currentSprint.carryOver < previousSprint.carryOver) {
-            insights.push({ text: `Less carry-over than last sprint`, type: 'good' })
+            insights.push({ text: `${t('lessCarryOverThanLastSprint', locale)}`, type: 'good' })
         }
 
         if (completionRate >= 90) {
-            insights.push({ text: `Excellent completion rate: ${completionRate}%`, type: 'good' })
+            insights.push({ text: `${t('excellentCompletionRate', locale)} ${completionRate}%`, type: 'good' })
         } else if (completionRate < 70) {
-            insights.push({ text: `Low completion rate: ${completionRate}%`, type: 'bad' })
+            insights.push({ text: `${t('lowCompletionRate', locale)} ${completionRate}%`, type: 'bad' })
         }
 
         return {
@@ -235,11 +237,11 @@ export default function SprintRetroPanel({
         return (
             <Container>
                 <Header>
-                    <Title>📊 Pit Crew Debrief</Title>
-                    <Badge>Retro</Badge>
+                    <Title>📊 {t('pitCrewDebrief', locale)}</Title>
+                    <Badge>{t('retro', locale)}</Badge>
                 </Header>
                 <EmptyState>
-                    Need at least 2 sprints for comparison.
+                    {t('needTwoSprints', locale)}
                 </EmptyState>
             </Container>
         )
@@ -248,51 +250,51 @@ export default function SprintRetroPanel({
     return (
         <Container>
             <Header>
-                <Title>📊 Pit Crew Debrief</Title>
-                <Badge>Retro</Badge>
+                <Title>📊 {t('pitCrewDebrief', locale)}</Title>
+                <Badge>{t('retro', locale)}</Badge>
             </Header>
 
             <ComparisonGrid>
                 <SprintCard $isCurrent={false}>
-                    <SprintLabel>Previous</SprintLabel>
+                    <SprintLabel>{t('previous', locale)}</SprintLabel>
                     <SprintName>{previousSprint.name}</SprintName>
                     <MetricRow>
-                        <MetricLabel>Velocity</MetricLabel>
+                        <MetricLabel>{t('velocity', locale)}</MetricLabel>
                         <MetricValue>{previousSprint.velocity}</MetricValue>
                     </MetricRow>
                     <MetricRow>
-                        <MetricLabel>Committed</MetricLabel>
+                        <MetricLabel>{t('committed', locale)}</MetricLabel>
                         <MetricValue>{previousSprint.committed}</MetricValue>
                     </MetricRow>
                     <MetricRow>
-                        <MetricLabel>Completed</MetricLabel>
+                        <MetricLabel>{t('completed', locale)}</MetricLabel>
                         <MetricValue>{previousSprint.completed}</MetricValue>
                     </MetricRow>
                     <MetricRow>
-                        <MetricLabel>Cycle Time</MetricLabel>
+                        <MetricLabel>{t('cycleTime', locale)}</MetricLabel>
                         <MetricValue>{previousSprint.avgCycleTime}d</MetricValue>
                     </MetricRow>
                 </SprintCard>
 
                 <SprintCard $isCurrent={true}>
-                    <SprintLabel>Current</SprintLabel>
+                    <SprintLabel>{t('current', locale)}</SprintLabel>
                     <SprintName>{currentSprint.name}</SprintName>
                     <MetricRow>
-                        <MetricLabel>Velocity</MetricLabel>
+                        <MetricLabel>{t('velocity', locale)}</MetricLabel>
                         <MetricValue $color={analysis.isPositive ? '#39FF14' : '#FF0033'}>
                             {currentSprint.velocity}
                         </MetricValue>
                     </MetricRow>
                     <MetricRow>
-                        <MetricLabel>Committed</MetricLabel>
+                        <MetricLabel>{t('committed', locale)}</MetricLabel>
                         <MetricValue>{currentSprint.committed}</MetricValue>
                     </MetricRow>
                     <MetricRow>
-                        <MetricLabel>Completed</MetricLabel>
+                        <MetricLabel>{t('completed', locale)}</MetricLabel>
                         <MetricValue>{currentSprint.completed}</MetricValue>
                     </MetricRow>
                     <MetricRow>
-                        <MetricLabel>Cycle Time</MetricLabel>
+                        <MetricLabel>{t('cycleTime', locale)}</MetricLabel>
                         <MetricValue>{currentSprint.avgCycleTime}d</MetricValue>
                     </MetricRow>
                 </SprintCard>
@@ -301,7 +303,7 @@ export default function SprintRetroPanel({
             <DeltaIndicator $positive={analysis.isPositive}>
                 <DeltaIcon>{analysis.isPositive ? '🚀' : '🔧'}</DeltaIcon>
                 <DeltaText $positive={analysis.isPositive}>
-                    {analysis.isPositive ? '+' : ''}{analysis.velocityDelta} velocity ({analysis.velocityPercent}%)
+                    {analysis.isPositive ? '+' : ''}{analysis.velocityDelta} {t('velocity', locale)} ({analysis.velocityPercent}%)
                 </DeltaText>
             </DeltaIndicator>
 

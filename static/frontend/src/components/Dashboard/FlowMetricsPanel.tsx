@@ -249,9 +249,9 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
 
     if (loading) {
         return (
-            <F1Card title="🏁 Race Strategy Analysis" badge="Loading...">
+            <F1Card title={`🏁 ${t('raceStrategyAnalysis', locale)}`} badge={t('loading', locale)}>
                 <div style={{ padding: 24, textAlign: 'center', color: '#888' }}>
-                    Calculating flow metrics...
+                    {t('calculatingFlowMetrics', locale)}
                 </div>
             </F1Card>
         )
@@ -259,9 +259,9 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
 
     if (error || !data) {
         return (
-            <F1Card title="🏁 Race Strategy Analysis" badge="Error">
+            <F1Card title={`🏁 ${t('raceStrategyAnalysis', locale)}`} badge={t('error', locale)}>
                 <div style={{ padding: 24, textAlign: 'center', color: '#FF0033' }}>
-                    {error || 'No data available'}
+                    {error || t('noData', locale)}
                 </div>
             </F1Card>
         )
@@ -273,12 +273,12 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
 
     return (
         <Container>
-            <F1Card title="🏁 Race Strategy Analysis" badge="SAFe Flow">
+            <F1Card title={`🏁 ${t('raceStrategyAnalysis', locale)}`} badge={t('safeFlow', locale)}>
                 <MetricsGrid>
                     {/* Strategy Mix (Distribution) */}
                     <MetricSection>
                         <SectionTitle>
-                            {theme.features.emoji} Strategy Mix
+                            {theme.features.emoji} {t('strategyMix', locale)}
                         </SectionTitle>
                         <DistributionBars>
                             <DistributionRow>
@@ -307,11 +307,11 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
                     {/* Laps Completed (Velocity) */}
                     <MetricSection>
                         <SectionTitle>
-                            🏎️ Laps Completed
+                            🏎️ {t('lapsCompleted', locale)}
                         </SectionTitle>
                         <VelocityDisplay>
                             <VelocityValue>{data.velocity.completed}</VelocityValue>
-                            <VelocityUnit>items</VelocityUnit>
+                            <VelocityUnit>{t('items', locale)}</VelocityUnit>
                             <TrendBadge $trend={data.velocity.trend}>
                                 {data.velocity.trend === 'up' ? '▲' : data.velocity.trend === 'down' ? '▼' : '━'}
                                 {' '}{data.velocity.changePercent}%
@@ -323,20 +323,20 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
                     {/* Sector Time (Flow Time) */}
                     <MetricSection>
                         <SectionTitle>
-                            ⏱️ Sector Time (Lead Time)
+                            ⏱️ {t('sectorTimeLeadTime', locale)}
                         </SectionTitle>
                         <TimeStats>
                             <TimeStat>
                                 <TimeValue>{Math.round(data.flowTime.avgHours / 24)}d</TimeValue>
-                                <TimeLabel>Average</TimeLabel>
+                                <TimeLabel>{t('average', locale)}</TimeLabel>
                             </TimeStat>
                             <TimeStat>
                                 <TimeValue>{Math.round(data.flowTime.medianHours / 24)}d</TimeValue>
-                                <TimeLabel>Median</TimeLabel>
+                                <TimeLabel>{t('median', locale)}</TimeLabel>
                             </TimeStat>
                             <TimeStat>
                                 <TimeValue>{Math.round(data.flowTime.p85Hours / 24)}d</TimeValue>
-                                <TimeLabel>P85</TimeLabel>
+                                <TimeLabel>{t('p85', locale)}</TimeLabel>
                             </TimeStat>
                         </TimeStats>
                     </MetricSection>
@@ -344,14 +344,14 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
                     {/* Fuel Load (Flow Load) */}
                     <MetricSection>
                         <SectionTitle>
-                            ⛽ Fuel Load (WIP)
+                            ⛽ {t('fuelLoadWip', locale)}
                         </SectionTitle>
                         <LoadGauge>
                             <LoadBar $percent={data.flowLoad.loadPercent} $status={loadStatus} />
                             <LoadValue $status={loadStatus}>{data.flowLoad.loadPercent}%</LoadValue>
                         </LoadGauge>
                         <div style={{ marginTop: 8, fontSize: 10, color: '#888' }}>
-                            {data.flowLoad.total} / {data.flowLoad.limit} items
+                            {data.flowLoad.total} / {data.flowLoad.limit} {t('items', locale)}
                         </div>
                     </MetricSection>
                 </MetricsGrid>
@@ -359,7 +359,7 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
                 {/* Detected Types */}
                 <DetectedTypes>
                     <SectionTitle style={{ marginBottom: 8 }}>
-                        🔍 Auto-Detected Issue Types
+                        🔍 {t('autoDetectedIssueTypes', locale)}
                     </SectionTitle>
                     <div>
                         {data.detectedTypes.map(type => (
