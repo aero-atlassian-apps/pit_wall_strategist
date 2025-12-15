@@ -6,7 +6,7 @@ const TOUR_STEPS = [
   { id: 'telemetry', target: '[data-tour="telemetry"]', title: '📊 Car Telemetry', content: '**Fuel Load** = Work In Progress. **Tire Deg** = Team burnout. Watch these gauges to know when the car is struggling.', position: 'right' },
   { id: 'track', target: '[data-tour="track"]', title: '🏎️ The Circuit', content: 'Your sprint visualized as an F1 track. Tickets move through sectors. A **red glow** means a ticket has stalled — it needs pit strategy!', position: 'bottom' },
   { id: 'racecontrol', target: '[data-tour="racecontrol"]', title: '📡 Race Control', content: 'Live feed of sprint events. Yellow = caution. Red = critical. When something needs attention, the **BOX BOX** button flashes.', position: 'left' },
-  { id: 'boxbox', target: '[data-tour="boxbox"]', title: '🔴 BOX BOX Button', content: 'Click this when a ticket is stalled. Rovo AI will analyze the situation and offer you 3 pit strategies to get back on track.', position: 'left' },
+  { id: 'boxbox', target: '[data-tour="boxbox"]', title: '🔴 BOX BOX Button', content: 'Click this when a ticket is stalled. The Strategy Assistant will analyze the situation and offer you 3 pit strategies to get back on track.', position: 'left' },
   { id: 'settings', target: '[data-tour="settings"]', title: '⚙️ Race Configuration', content: 'Customize your pit strategy: WIP limits, burnout thresholds, and stall detection timing. Every team is different.', position: 'bottom-left' }
 ]
 

@@ -207,11 +207,13 @@ function InnerApp() {
               onRefresh={refreshTelemetry}
             />
 
-            {/* P0 Intelligence Features */}
-            <SprintHealthGauge
-              sprintHealth={advancedAnalytics?.sprintHealth}
-              loading={!advancedAnalytics}
-            />
+            {/* P0 Intelligence Features - Conditional on board type */}
+            {boardType === 'scrum' && (
+              <SprintHealthGauge
+                sprintHealth={advancedAnalytics?.sprintHealth}
+                loading={!advancedAnalytics}
+              />
+            )}
             <PredictiveAlertsPanel
               preStallWarnings={advancedAnalytics?.preStallWarnings || []}
               bottleneck={advancedAnalytics?.bottleneck}
@@ -242,6 +244,8 @@ function InnerApp() {
               onRefresh={refreshAll}
               boardType={boardType}
               projectContext={projectContext}
+              issues={issues}
+              telemetryData={telemetryData}
             />
             {/* Systems Status Strip */}
             <div style={{ marginTop: 'auto', paddingTop: 8, borderTop: '1px solid #334155' }}>

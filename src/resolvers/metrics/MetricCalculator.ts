@@ -63,11 +63,16 @@ export class MetricCalculator {
     }
 
     private calculateVelocityDelta(boardData: BoardData, completion: number): number {
+        // Only calculate velocity delta if we have a valid sprint with dates
         if (boardData.boardType === 'scrum' && boardData.sprint?.startDate && boardData.sprint?.endDate) {
             const now = new Date();
             const start = new Date(boardData.sprint.startDate);
             const end = new Date(boardData.sprint.endDate);
             const totalDuration = end.getTime() - start.getTime();
+
+            // Avoid division by zero
+            if (totalDuration <= 0) return 0;
+
             const elapsed = now.getTime() - start.getTime();
             const expectedProgress = Math.min(100, Math.max(0, Math.round((elapsed / totalDuration) * 100)));
             return completion - expectedProgress;
@@ -77,11 +82,15 @@ export class MetricCalculator {
 
     private determineHealthStatus(boardType: string, velocityDelta: number, wipLoad: number): 'OPTIMAL' | 'WARNING' | 'CRITICAL' {
         if (boardType === 'scrum') {
-            if (velocityDelta < -20 || wipLoad > 100) return 'CRITICAL';
-            else if (velocityDelta < -10 || wipLoad > 80) return 'WARNING';
+            // In Scrum, we care about velocity AND WIP
+            // If velocity is significantly behind (-20%), it's critical
+            if (velocityDelta < -20 || wipLoad > 120) return 'CRITICAL';
+            else if (velocityDelta < -10 || wipLoad > 90) return 'WARNING';
         } else {
+            // In Kanban/Business, we purely care about WIP and Flow
+            // Strict WIP limits: > 100% is Critical
             if (wipLoad > 100) return 'CRITICAL';
-            else if (wipLoad > 90) return 'WARNING';
+            else if (wipLoad > 85) return 'WARNING';
         }
         return 'OPTIMAL';
     }

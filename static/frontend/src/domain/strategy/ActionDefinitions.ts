@@ -1,3 +1,7 @@
+/**
+ * Action Definitions for Strategy Assistant
+ * Defines the deterministic actions available to the user.
+ */
 import { ActionDefinition } from './StrategyTypes';
 
 export const ALL_ACTIONS: ActionDefinition[] = [

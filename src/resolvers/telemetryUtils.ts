@@ -75,9 +75,11 @@ async function fetchScrumData(boardCtx: BoardContext, config: TelemetryConfig, p
     if (!activeSprint) {
          if (config?.includeBoardIssuesWhenSprintEmpty !== false) {
              const issues = await fetchAllBoardIssues(boardId, projectKey);
-             return { ...boardCtx, issues };
+             return { ...boardCtx, issues, sprint: undefined };
          }
-         throw new Error(`No active or future sprints found on board ${boardId} or via JQL in project.`);
+         // Graceful fallback instead of error
+         console.warn(`[Telemetry] No sprints found for board ${boardId}. Returning empty state.`);
+         return { ...boardCtx, issues: [], sprint: undefined };
     }
 
     const initialJql = `sprint = ${activeSprint.id}`;

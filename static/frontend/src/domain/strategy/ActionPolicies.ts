@@ -1,3 +1,7 @@
+/**
+ * Action Policies for Strategy Assistant
+ * Deterministic rules to evaluate action relevance based on board/issue context.
+ */
 import { ActionDefinition, ActionRecommendation, BoardContext, IssueContext } from './StrategyTypes';
 
 type RelevanceResult = { relevance: ActionRecommendation['relevance']; reason?: string };
