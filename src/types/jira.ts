@@ -14,6 +14,7 @@ export interface JiraIssueFields {
   labels?: string[]
   status?: JiraStatus
   issuetype?: { name?: string }
+  project?: { key?: string }
   customfield_10020?: any
 }
 export interface JiraIssue { key: string; fields: JiraIssueFields; changelog?: { histories?: Array<{ created?: string; items?: Array<{ field?: string; fromString?: string; toString?: string }> }> } }
