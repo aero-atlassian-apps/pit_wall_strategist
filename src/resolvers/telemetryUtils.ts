@@ -25,7 +25,6 @@ export async function detectBoardType(projectKey: string): Promise<BoardContext>
 }
 
 export async function fetchBoardData(projectKey: string, config: TelemetryConfig = DEFAULT_CONFIG, context?: any): Promise<BoardData> {
-    console.log('[fetchBoardData] received context:', context);
     const boardInfo = await detectBoardType(projectKey);
 
     if (boardInfo.boardType === 'business') {

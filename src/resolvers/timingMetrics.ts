@@ -18,7 +18,6 @@ export function calculateLeadTime(issues: JiraIssue[]): LeadTimeResult {
 }
 
 export async function calculateCycleTime(issueKeys: string[], context?: any): Promise<SectorTimes> {
-  console.log('[calculateCycleTime] received context:', context)
   const projectKey = context?.extension?.project?.key
   if (!issueKeys || issueKeys.length === 0) return getDefaultCycleTime()
   let statusMap: any = null
