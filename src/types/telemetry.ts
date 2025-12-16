@@ -34,15 +34,19 @@ export interface BoardData extends BoardContext {
   issues: JiraIssue[] // Current board issues
   closedSprints?: Sprint[] // Last X closed sprints for velocity
   historicalIssues?: JiraIssue[] // Issues from past sprints or time window for flow metrics
+  isRestricted?: boolean
 }
 
 // Deprecated: Alias for backward compatibility during refactor, but we should move to BoardData
 export type SprintData = BoardData
 
 export interface TelemetryData {
+  status?: 'ok' | 'disabled' | 'error'
+  reason?: string
+
   boardType: BoardType
   // Generic "Health" metric instead of Sprint Status
-  healthStatus: 'OPTIMAL' | 'WARNING' | 'CRITICAL'
+  healthStatus?: 'OPTIMAL' | 'WARNING' | 'CRITICAL'
   // Replaces sprintStatus for backward compatibility (calculated from healthStatus)
   sprintStatus?: 'OPTIMAL' | 'WARNING' | 'CRITICAL'
 
@@ -60,15 +64,15 @@ export interface TelemetryData {
   cycleTimeExplanation?: string
   cycleTimeWindow?: string
 
-  wipLoad: number
-  wipLimit: number
-  wipCurrent: number
+  wipLoad?: number
+  wipLimit?: number
+  wipCurrent?: number
   wipExplanation?: string
   wipConsistency?: number // New: Stability of WIP (lower is better, or just standard deviation)
   wipConsistencyExplanation?: string
 
-  teamBurnout: Record<string, number>
-  issuesByStatus: { todo: number; inProgress: number; done: number }
+  teamBurnout?: Record<string, number>
+  issuesByStatus?: { todo: number; inProgress: number; done: number }
   completion?: number // Percentage complete (for Scrum/Business)
 }
 

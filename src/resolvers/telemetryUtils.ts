@@ -43,7 +43,8 @@ export async function fetchBoardData(projectKey: string, config: TelemetryConfig
             boardId: null,
             boardName: 'Restricted Access',
             issues: [],
-            historicalIssues: []
+            historicalIssues: [],
+            isRestricted: true
         };
     }
 
@@ -224,6 +225,13 @@ async function fetchAllBoardIssues(boardId: number, projectKey?: string, sprintI
 }
 
 export async function calculateTelemetry(boardData: BoardData, config: TelemetryConfig = DEFAULT_CONFIG, statusMap?: any): Promise<TelemetryData> {
+    if (boardData.isRestricted) {
+        return {
+            status: 'disabled',
+            reason: 'USER_AND_APP_BROWSE_DENIED',
+            boardType: boardData.boardType
+        };
+    }
     const categorizer = new IssueCategorizer(statusMap);
     const calculator = new MetricCalculator(categorizer, config);
     return calculator.calculate(boardData);

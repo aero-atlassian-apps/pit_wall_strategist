@@ -157,6 +157,18 @@ interface SprintHealthGaugeProps {
 
 export function SprintHealthGauge({ sprintHealth, loading }: SprintHealthGaugeProps) {
     const locale = (window as any).__PWS_LOCALE || 'en'
+    // Handle disabled/unavailable state
+    if (!sprintHealth && !loading) {
+         return (
+             <Container>
+                 <Header>
+                     <Title>🏥 {t('sprintHealth', locale)}</Title>
+                 </Header>
+                 <Message style={{ color: '#64748B' }}>{t('metricsDisabled', locale) || 'Metrics Unavailable'}</Message>
+             </Container>
+         )
+    }
+
     if (loading || !sprintHealth) {
         return (
             <Container>

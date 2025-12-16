@@ -130,6 +130,24 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
         return '#39FF14'
     }
 
+    // Check for disabled status
+    if (telemetryData?.status === 'disabled') {
+         return (
+             <F1Card
+                 title={isKanban ? t('flowTelemetry', locale) : t('sprintTelemetry', locale)}
+                 fullHeight
+                 action={<IconButton onClick={onRefresh} size="sm" ariaLabel={t('refresh', locale)}><RefreshIcon /></IconButton>}
+             >
+                 <DeckContainer>
+                     <div style={{ textAlign: 'center', color: '#64748B', padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
+                        {t('metricsDisabled', locale) || 'Metrics Disabled (Access Denied)'}
+                     </div>
+                     <DiagnosticsWidget />
+                 </DeckContainer>
+             </F1Card>
+         )
+    }
+
     return (
         <F1Card
             title={isKanban ? t('flowTelemetry', locale) : t('sprintTelemetry', locale)}
