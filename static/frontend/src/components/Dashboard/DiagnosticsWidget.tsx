@@ -68,9 +68,14 @@ export default function DiagnosticsWidget() {
       <Title>{t('diagnostics', locale)}</Title>
       <KV><span>{t('source', locale)}:</span><strong>{velocitySource}</strong></KV>
       <KV><span>{t('window', locale)}:</span><strong>{velocityWindow}</strong></KV>
-      {auth && (auth.appBrowse === false) && (
-        <div style={{ color: '#FF0033', marginBottom: 8, fontFamily: (window as any).__THEME?.fonts?.mono || 'monospace' }}>
-          {t('permissions', locale)}: App browse denied. Using user fallback where possible.
+      {auth && (auth.appBrowse === false) && (auth.userBrowse === false) && (
+         <div style={{ color: '#FF0033', marginBottom: 8, fontFamily: (window as any).__THEME?.fonts?.mono || 'monospace' }}>
+           {t('permissions', locale)}: DISABLED — No Browse Permission
+         </div>
+      )}
+      {auth && (auth.appBrowse === false) && (auth.userBrowse !== false) && (
+        <div style={{ color: '#FF8800', marginBottom: 8, fontFamily: (window as any).__THEME?.fonts?.mono || 'monospace' }}>
+          {t('permissions', locale)}: App browse denied. Using user fallback (AsUser).
         </div>
       )}
       <div style={{ marginTop: 8 }}>
