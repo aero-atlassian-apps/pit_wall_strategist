@@ -6,6 +6,7 @@ import { issueSearchService } from './data/IssueSearchService';
 import { IssueCategorizer } from './issue/IssueCategorizer';
 import { MetricCalculator } from './metrics/MetricCalculator';
 import { fieldDiscoveryService } from './data/FieldDiscoveryService';
+import { SecurityGuard } from './security/SecurityGuard';
 
 const DEFAULT_CONFIG: TelemetryConfig = {
   wipLimit: 8,
@@ -26,7 +27,39 @@ export async function detectBoardType(projectKey: string): Promise<BoardContext>
 }
 
 export async function fetchBoardData(projectKey: string, config: TelemetryConfig = DEFAULT_CONFIG, context?: any): Promise<BoardData> {
+    // SECURITY GUARD: Enforce permissions before attempting fetch
+    let security = context?.security;
+    if (!security) {
+        const guard = new SecurityGuard();
+        security = await guard.validateContext(projectKey);
+    }
+
+    // STRICT CHECK: The app primarily uses asUser() for data fetching.
+    // If the user lacks BROWSE_PROJECTS, we cannot fetch data even if the App has permission.
+    if (!security.canReadProject || !security.permissions.userBrowse) {
+        console.warn(`[Telemetry] Access Denied for ${projectKey} (User Browse: ${security.permissions.userBrowse})`);
+        return {
+            boardType: 'business',
+            boardId: null,
+            boardName: 'Restricted Access',
+            issues: [],
+            historicalIssues: []
+        };
+    }
+
     const boardInfo = await detectBoardType(projectKey);
+
+    // If sprints are restricted (User lacks Agile permissions), force business mode (JQL only)
+    // This prevents 401 errors from agile endpoints
+    if (!security.canReadSprints && boardInfo.boardType !== 'business') {
+         console.warn(`[Telemetry] User lacks Agile permissions for ${projectKey}, falling back to Business/JQL mode.`);
+         // If user cannot browse, even business fetch might fail if it uses asUser.
+         // But we let it try or it will return empty if we add check inside fetchBusiness.
+         if (!security.permissions.userBrowse) {
+             return { boardType: 'business', boardId: null, boardName: 'No Access', issues: [], historicalIssues: [] };
+         }
+         return fetchBusinessProjectData(projectKey, config);
+    }
 
     if (boardInfo.boardType === 'business') {
         return fetchBusinessProjectData(projectKey, config);

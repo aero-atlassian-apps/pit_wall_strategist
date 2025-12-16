@@ -14,6 +14,7 @@ import { splitTicket, reassignTicket, deferTicket, handleAction } from './rovoAc
 import { getProjectContext, getContextSummary, type ProjectContext } from './contextEngine'
 import { getAdvancedAnalytics, calculateSprintHealth, detectPreStallWarnings, analyzeWIPAging, detectBottleneck, analyzeTeamCapacity, detectScopeCreep } from './advancedAnalytics'
 import { calculateAllFlowMetrics, FlowMetrics, FLOW_CATEGORY_F1_NAMES } from './flowTypeHeuristics'
+import { SecurityGuard } from './security/SecurityGuard'
 
 const resolver = new Resolver()
 const PLATFORM = process.env.PLATFORM || 'atlassian'
@@ -268,17 +269,20 @@ resolver.define('getDiagnosticsSummary', async ({ context }: any) => {
   try {
     if (PLATFORM === 'local') return { success: true, summary: { telemetry: {}, trends: {}, permissions: {}, fetchStatuses: [] } }
     const projectKey = context.extension.project.key as string
-    const boardData: BoardData = await fetchBoardData(projectKey, userConfig, context)
+
+    // Use Guard for permissions
+    const guard = new SecurityGuard();
+    const status = await guard.validateContext(projectKey);
+    const permissions = { userBrowse: status.permissions.userBrowse, appBrowse: status.permissions.appBrowse };
+
+    // Pass security context to avoid re-fetch
+    const enhancedContext = { ...context, security: status };
+    const boardData: BoardData = await fetchBoardData(projectKey, userConfig, enhancedContext)
     const statusMap = await getProjectStatusMap(projectKey)
     const telemetry: TelemetryData = await calculateTelemetry(boardData, userConfig, statusMap)
     const wipTrend: TrendData = await calculateWipTrend(projectKey)
     const velocityTrend: TrendData = await calculateVelocityTrend(projectKey)
-    // Permissions quick check
-    const apiMod = await import('@forge/api')
-    const route = apiMod.route
-    const userPerm = await apiMod.default.asUser().requestJira(route`/rest/api/3/mypermissions?projectKey=${projectKey}&permissions=BROWSE`, { headers: { Accept: 'application/json' } })
-    const appPerm = await apiMod.default.asApp().requestJira(route`/rest/api/3/mypermissions?projectKey=${projectKey}&permissions=BROWSE`, { headers: { Accept: 'application/json' } })
-    const permissions = { userBrowse: (await userPerm.json())?.permissions?.BROWSE?.havePermission === true, appBrowse: (await appPerm.json())?.permissions?.BROWSE?.havePermission === true }
+
     const fetchStatuses = getFetchStatuses()
     return {
       success: true,
@@ -415,38 +419,17 @@ resolver.define('getDevOpsStatus', async ({ context }: any) => {
 resolver.define('getPermissionsDiagnostics', async ({ context }: any) => {
   try {
     const projectKey = context.extension.project.key as string
-    const apiMod = await import('@forge/api')
-    const route = apiMod.route
-
-    // Test 1: Can we fetch issues using asApp() - This is the primary data path
-    let appDataAccess = false
-    try {
-      const testResp = await apiMod.default.asApp().requestJira(route`/rest/api/3/search?jql=${encodeURIComponent(`project = "${projectKey}"`)}&maxResults=1`, { headers: { Accept: 'application/json' } })
-      appDataAccess = testResp.ok
-    } catch { appDataAccess = false }
-
-    // Test 2: Can asUser() access - requires user consent
-    let userDataAccess = false
-    try {
-      const userResp = await apiMod.default.asUser().requestJira(route`/rest/api/3/myself`, { headers: { Accept: 'application/json' } })
-      userDataAccess = userResp.ok
-    } catch { userDataAccess = false }
-
-    // Test 3: Sprint field availability
-    let hasSprintField = false
-    try {
-      const fieldsResp = await apiMod.default.asApp().requestJira(route`/rest/api/3/field`, { headers: { Accept: 'application/json' } })
-      const fields = await fieldsResp.json()
-      hasSprintField = Array.isArray(fields) && fields.some((f: any) => (f.name || '').toLowerCase() === 'sprint')
-    } catch { hasSprintField = false }
+    const guard = SecurityGuard.getInstance();
+    const status = await guard.validateContext(projectKey);
 
     return {
       success: true,
       permissions: {
-        userBrowse: userDataAccess,  // User consented and we can fetch as user
-        appBrowse: appDataAccess,     // App can fetch data (primary path)
-        hasSprintField
-      }
+        userBrowse: status.permissions.userBrowse,
+        appBrowse: status.permissions.appBrowse,
+        hasSprintField: status.canReadSprints // Mapped to canReadSprints for now
+      },
+      messages: status.messages
     }
   } catch (error: any) {
     return { success: false, error: error.message }
@@ -456,16 +439,26 @@ resolver.define('getPermissionsDiagnostics', async ({ context }: any) => {
 resolver.define('getHealth', async ({ context }: any) => {
   try {
     const projectKey = context?.extension?.project?.key as string
+    const guard = SecurityGuard.getInstance();
+    const status = await guard.validateContext(projectKey);
+
     let boardInfo: any = null
-    try { boardInfo = await detectBoardType(projectKey) } catch (e: any) { boardInfo = { error: e?.message || 'board detection failed' } }
+    if (status.canReadProject && status.permissions.userBrowse) {
+        try { boardInfo = await detectBoardType(projectKey) } catch (e: any) { boardInfo = { error: e?.message || 'board detection failed' } }
+    } else {
+        boardInfo = { error: 'Access Denied (User Permission Missing)' }
+    }
+
     const fields = await discoverCustomFields()
-    const apiMod = await import('@forge/api')
-    const route = apiMod.route
-    const userBrowseResp = await apiMod.default.asUser().requestJira(route`/rest/api/3/mypermissions?projectKey=${projectKey}&permissions=BROWSE`, { headers: { Accept: 'application/json' } })
-    const appBrowseResp = await apiMod.default.asApp().requestJira(route`/rest/api/3/mypermissions?projectKey=${projectKey}&permissions=BROWSE`, { headers: { Accept: 'application/json' } })
-    const userBrowse = (await userBrowseResp.json())?.permissions?.BROWSE?.havePermission === true
-    const appBrowse = (await appBrowseResp.json())?.permissions?.BROWSE?.havePermission === true
-    return { success: true, platform: PLATFORM, projectKey, boardInfo, fields, permissions: { userBrowse, appBrowse } }
+    return {
+        success: true,
+        platform: PLATFORM,
+        projectKey,
+        boardInfo,
+        fields,
+        permissions: { userBrowse: status.permissions.userBrowse, appBrowse: status.permissions.appBrowse },
+        messages: status.messages
+    }
   } catch (error: any) {
     return { success: false, error: error.message }
   }
@@ -474,11 +467,19 @@ resolver.define('getHealth', async ({ context }: any) => {
 resolver.define('getDiagnosticsDetails', async ({ context }: any) => {
   try {
     const projectKey = context?.extension?.project?.key as string
+    const guard = SecurityGuard.getInstance();
+    const status = await guard.validateContext(projectKey);
+
     let boardInfo: any = null
-    try { boardInfo = await detectBoardType(projectKey) } catch (e: any) { boardInfo = { error: e?.message || 'board detection failed' } }
+    if (status.canReadProject && status.permissions.userBrowse) {
+        try { boardInfo = await detectBoardType(projectKey) } catch (e: any) { boardInfo = { error: e?.message || 'board detection failed' } }
+    } else {
+        boardInfo = { error: 'Access Denied: ' + status.messages.join(', ') }
+    }
+
     let filter: any = null
     try {
-      if (boardInfo?.boardId) {
+      if (boardInfo?.boardId && status.permissions.appBrowse) {
         const apiMod = await import('@forge/api')
         const route = apiMod.route
         const cfgResp = await apiMod.default.asApp().requestJira(route`/rest/agile/1.0/board/${boardInfo.boardId}/configuration`, { headers: { Accept: 'application/json' } })
@@ -490,13 +491,22 @@ resolver.define('getDiagnosticsDetails', async ({ context }: any) => {
         }
       }
     } catch (e: any) { filter = { error: e?.message } }
+
     const fieldsSnapshot = getFieldCacheSnapshot() || (await discoverCustomFields())
+
     let sprint: any = null
-    try { const sd = await fetchBoardData(projectKey, userConfig, context); sprint = { id: sd.sprint?.id, name: sd.sprint?.name || sd.boardName, state: sd.sprint?.state, boardType: sd.boardType } } catch (e: any) { sprint = { error: e?.message } }
+    try {
+        // fetchBoardData is internally guarded now, so it's safe to call.
+        const sd = await fetchBoardData(projectKey, userConfig, context);
+        sprint = { id: sd.sprint?.id, name: sd.sprint?.name || sd.boardName, state: sd.sprint?.state, boardType: sd.boardType }
+    } catch (e: any) { sprint = { error: e?.message } }
+
     const scopes = getScopes()
     let statuses: any = null
-    try { statuses = await getProjectStatusMap(projectKey) } catch { }
-    return { success: true, boardInfo, filter, fields: fieldsSnapshot, sprint, scopes, statuses }
+    if (status.canReadProject) {
+        try { statuses = await getProjectStatusMap(projectKey) } catch { }
+    }
+    return { success: true, boardInfo, filter, fields: fieldsSnapshot, sprint, scopes, statuses, permissions: status.permissions }
   } catch (error: any) {
     return { success: false, error: error.message }
   }
