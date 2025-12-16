@@ -1,7 +1,20 @@
 import api, { route } from '@forge/api';
 import { BoardContext } from '../../types/telemetry';
 
+/**
+ * Board Discovery Service
+ * Detects the board type and configuration for a given project.
+ *
+ * AUTHENTICATION POLICY:
+ * - Uses `asUser()` to ensure the user can only see boards they have access to.
+ */
 export class BoardDiscoveryService {
+
+  /**
+   * Detect Board Type
+   * Docs: https://developer.atlassian.com/cloud/jira/software/rest/api-group-board/#api-agile-1-0-board-get
+   * Scope: read:board-scope:jira-software
+   */
   async detectBoardType(projectKey: string): Promise<BoardContext> {
     // First check if it's a business project (no agile boards)
     const projectType = await this.detectProjectType(projectKey);
@@ -10,7 +23,8 @@ export class BoardDiscoveryService {
     }
 
     // Try to get agile boards
-    const response = await api.asApp().requestJira(route`/rest/agile/1.0/board?projectKeyOrId=${projectKey}`, { headers: { Accept: 'application/json' } });
+    // Changed to asUser()
+    const response = await api.asUser().requestJira(route`/rest/agile/1.0/board?projectKeyOrId=${projectKey}`, { headers: { Accept: 'application/json' } });
 
     if (!response.ok) {
       console.log(`[Telemetry] Agile API failed for ${projectKey}, falling back to business mode`);
@@ -29,9 +43,15 @@ export class BoardDiscoveryService {
     return { boardType: (board.type || 'scrum') as 'scrum' | 'kanban', boardId: board.id as number, boardName: board.name as string };
   }
 
+  /**
+   * Detect Project Type
+   * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-projects/#api-rest-api-3-project-projectkeyorid-get
+   * Scope: read:project:jira
+   */
   private async detectProjectType(projectKey: string): Promise<'software' | 'business'> {
     try {
-      const resp = await api.asApp().requestJira(route`/rest/api/3/project/${projectKey}`, { headers: { Accept: 'application/json' } });
+      // Changed to asUser()
+      const resp = await api.asUser().requestJira(route`/rest/api/3/project/${projectKey}`, { headers: { Accept: 'application/json' } });
       if (!resp.ok) return 'software'; // Default to software if can't detect
       const project = await resp.json();
       // Business projects have projectTypeKey = 'business' or style = 'next-gen'/'basic' without boards

@@ -3,6 +3,20 @@ import { mockActionResult } from './mocks'
 import { discoverCustomFields } from './telemetryUtils'
 const PLATFORM = process.env.PLATFORM || 'atlassian'
 
+/**
+ * Rovo Actions Handler
+ * Executes write operations on Jira issues.
+ *
+ * AUTHENTICATION POLICY:
+ * - All write operations MUST use `asUser()` to ensure the actor has permission to perform the action.
+ * - This prevents unauthorized modifications by the app on behalf of users.
+ */
+
+/**
+ * SPLIT TICKET
+ * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-post
+ * Scope: write:issue:jira
+ */
 export async function splitTicket({ issueKey, subtasks }: { issueKey: string; subtasks?: Array<{ summary: string }> }) {
   if (PLATFORM === 'local') { return mockActionResult('split') }
   const parentIssue = await getIssue(issueKey)
@@ -21,6 +35,11 @@ export async function splitTicket({ issueKey, subtasks }: { issueKey: string; su
   return { success: true, message: `Split into ${createdSubtasks.length} subtasks`, subtasks: createdSubtasks }
 }
 
+/**
+ * REASSIGN TICKET
+ * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issuekey-or-id-put
+ * Scope: write:issue:jira, read:user:jira
+ */
 export async function reassignTicket({ issueKey, newAssignee }: { issueKey: string; newAssignee: string }) {
   if (PLATFORM === 'local') { return mockActionResult('reassign') }
   const response = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, { method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { assignee: { accountId: newAssignee } } }) })
@@ -31,6 +50,11 @@ export async function reassignTicket({ issueKey, newAssignee }: { issueKey: stri
   return { success: true, message: `Reassigned to ${user.displayName}` }
 }
 
+/**
+ * DEFER TICKET
+ * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issuekey-or-id-transitions-post
+ * Scope: write:issue:jira
+ */
 export async function deferTicket({ issueKey }: { issueKey: string }) {
   if (PLATFORM === 'local') { return mockActionResult('defer') }
 
@@ -63,7 +87,10 @@ export async function deferTicket({ issueKey }: { issueKey: string }) {
 
 // ============ NEW ACTIONS ============
 
-/** BLUE FLAG - Change priority */
+/** BLUE FLAG - Change priority
+ * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issuekey-or-id-put
+ * Scope: write:issue:jira
+ */
 export async function changePriority({ issueKey, priority }: { issueKey: string; priority: string }) {
   if (PLATFORM === 'local') { return mockActionResult('priority') }
   const response = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, {
@@ -76,7 +103,10 @@ export async function changePriority({ issueKey, priority }: { issueKey: string;
   return { success: true, message: `Priority changed to ${priority}` }
 }
 
-/** PUSH TO LIMIT - Transition to next status */
+/** PUSH TO LIMIT - Transition to next status
+ * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issuekey-or-id-transitions-post
+ * Scope: write:issue:jira
+ */
 export async function transitionIssue({ issueKey, transitionId, transitionName }: { issueKey: string; transitionId?: string; transitionName?: string }) {
   if (PLATFORM === 'local') { return mockActionResult('transition') }
   const transitionsResponse = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { headers: { Accept: 'application/json' } })
@@ -90,7 +120,10 @@ export async function transitionIssue({ issueKey, transitionId, transitionName }
   return { success: true, message: `Transitioned to ${target.name}` }
 }
 
-/** RED FLAG - Add blocker flag */
+/** RED FLAG - Add blocker flag
+ * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issuekey-or-id-put
+ * Scope: write:issue:jira
+ */
 export async function addBlockerFlag({ issueKey, reason }: { issueKey: string; reason?: string }) {
   if (PLATFORM === 'local') { return mockActionResult('blocker') }
 
@@ -124,7 +157,10 @@ export async function addBlockerFlag({ issueKey, reason }: { issueKey: string; r
   return { success: true, message: 'Issue flagged as blocked' }
 }
 
-/** SLIPSTREAM - Link issues */
+/** SLIPSTREAM - Link issues
+ * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-links/#api-rest-api-3-issuelink-post
+ * Scope: write:issue:jira
+ */
 export async function linkIssues({ issueKey, linkedIssueKey, linkType }: { issueKey: string; linkedIssueKey: string; linkType?: string }) {
   if (PLATFORM === 'local') { return mockActionResult('link') }
   const type = linkType || 'Relates'
@@ -141,7 +177,10 @@ export async function linkIssues({ issueKey, linkedIssueKey, linkType }: { issue
   return { success: true, message: `Linked to ${linkedIssueKey}` }
 }
 
-/** FUEL ADJUSTMENT - Update estimate */
+/** FUEL ADJUSTMENT - Update estimate
+ * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issuekey-or-id-put
+ * Scope: write:issue:jira
+ */
 export async function updateEstimate({ issueKey, storyPoints, timeEstimate }: { issueKey: string; storyPoints?: number; timeEstimate?: string }) {
   if (PLATFORM === 'local') { return mockActionResult('estimate') }
 
@@ -165,14 +204,20 @@ export async function updateEstimate({ issueKey, storyPoints, timeEstimate }: { 
   return { success: true, message: 'Estimate updated' }
 }
 
-/** RADIO MESSAGE - Add strategic comment */
+/** RADIO MESSAGE - Add strategic comment
+ * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-comments/#api-rest-api-3-issue-issuekey-or-id-comment-post
+ * Scope: write:comment:jira
+ */
 export async function addRadioMessage({ issueKey, message }: { issueKey: string; message: string }) {
   if (PLATFORM === 'local') { return mockActionResult('radio') }
   await addComment(issueKey, `🏎️ *PIT WALL RADIO*\n\n${message}\n\n_Transmitted via Pit Wall Strategist_`)
   return { success: true, message: 'Radio message sent' }
 }
 
-/** PIT CREW TASK - Create specific subtask */
+/** PIT CREW TASK - Create specific subtask
+ * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-post
+ * Scope: write:issue:jira
+ */
 export async function createSubtask({ issueKey, summary, assignee }: { issueKey: string; summary: string; assignee?: string }) {
   if (PLATFORM === 'local') { return mockActionResult('subtask') }
   const parentIssue = await getIssue(issueKey)

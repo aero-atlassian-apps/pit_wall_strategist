@@ -262,22 +262,16 @@ resources:
 
 permissions:
   scopes:
-    #- read:jira-work
-    #- write:jira-work
-    #- read:jira-user
-    #- manage:jira-project
-    - read:project:jira
-    - read:board-scope:jira-software
-    - read:sprint:jira-software
-    - read:board-scope.admin:jira-software
-    - read:issue:jira
-    - read:issue:jira-software
-    - read:filter:jira
-    - read:issue-details:jira
-    - write:issue:jira
-    - write:comment:jira
-    - read:user:jira
-    - storage:app
+    # See https://developer.atlassian.com/platform/forge/manifest-reference/scopes-product-jira/
+    - read:project:jira # Required for reading project info
+    - read:board-scope:jira-software # Required for reading boards
+    - read:sprint:jira-software # Required for reading sprints
+    - read:board-scope.admin:jira-software # Required for reading board configuration
+    - read:issue:jira # Required for reading issues and JQL search
+    - write:issue:jira # Required for creating/updating issues
+    - write:comment:jira # Required for adding comments
+    - read:user:jira # Required for reading user info
+    - storage:app # Standard Forge storage
 
   content:
     styles:
