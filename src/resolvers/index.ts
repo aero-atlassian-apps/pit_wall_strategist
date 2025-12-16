@@ -108,7 +108,7 @@ resolver.define('getProjectBoards', async ({ context }: any) => {
 
 resolver.define('getTelemetryData', async ({ context }: any) => {
   try {
-    console.log('[ENTRY] getTelemetryData context:', context)
+    console.log('[ENTRY] getTelemetryData for project:', context?.extension?.project?.key)
     if (PLATFORM === 'local') return { success: true, data: mockTelemetry() }
     const projectKey = context.extension.project.key as string
     await discoverCustomFields()
@@ -142,7 +142,7 @@ resolver.define('getTelemetryData', async ({ context }: any) => {
 
 resolver.define('getSprintIssues', async ({ context }: any) => {
   try {
-    console.log('[ENTRY] getSprintIssues context:', context)
+    console.log('[ENTRY] getSprintIssues for project:', context?.extension?.project?.key)
     if (PLATFORM === 'local') { return { success: true, boardType: 'scrum', sprintName: 'Local Board', issues: mockIssues() } }
     const projectKey = context.extension.project.key as string
     const boardData: BoardData = await fetchBoardData(projectKey, userConfig, context)
@@ -209,7 +209,7 @@ resolver.define('getContext', async ({ context }: any) => {
 
 resolver.define('getTimingMetrics', async ({ context }: any) => {
   try {
-    console.log('[ENTRY] getTimingMetrics context:', context)
+    console.log('[ENTRY] getTimingMetrics for project:', context?.extension?.project?.key)
     if (PLATFORM === 'local') { return mockTiming() }
     const projectKey = context.extension.project.key as string
     const boardData: BoardData = await fetchBoardData(projectKey, userConfig, context)
@@ -241,7 +241,7 @@ resolver.define('getTrendData', async ({ context }: any) => {
 // === SAFe Flow Metrics (F1: Race Strategy Analysis) ===
 resolver.define('getFlowMetrics', async ({ context }: any) => {
   try {
-    console.log('[ENTRY] getFlowMetrics context:', context)
+    console.log('[ENTRY] getFlowMetrics for project:', context?.extension?.project?.key)
 
     if (PLATFORM === 'local') {
       // Mock data for local development only
@@ -343,7 +343,7 @@ resolver.define('getFlowMetrics', async ({ context }: any) => {
 
 resolver.define('getDevOpsStatus', async ({ context }: any) => {
   try {
-    console.log('[ENTRY] getDevOpsStatus context:', context)
+    console.log('[ENTRY] getDevOpsStatus for project:', context?.extension?.project?.key)
     if (PLATFORM === 'local') return mockDevOps()
     const projectKey = context.extension.project.key as string
     const devOpsStatus = await checkProjectDevOpsStatus(projectKey, context)
@@ -453,7 +453,7 @@ resolver.define('getDiagnosticsDetails', async ({ context }: any) => {
 
 resolver.define('getAdvancedAnalytics', async ({ context }: any) => {
   try {
-    console.log('[ENTRY] getAdvancedAnalytics context:', context)
+    console.log('[ENTRY] getAdvancedAnalytics for project:', context?.extension?.project?.key)
     const projectKey = context?.extension?.project?.key as string
 
     // Fetch board data
