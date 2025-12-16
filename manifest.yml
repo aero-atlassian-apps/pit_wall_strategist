@@ -262,16 +262,24 @@ resources:
 
 permissions:
   scopes:
-    # See https://developer.atlassian.com/platform/forge/manifest-reference/scopes-product-jira/
-    - read:project:jira # Required for reading project info
-    - read:board-scope:jira-software # Required for reading boards
-    - read:sprint:jira-software # Required for reading sprints
-    - read:board-scope.admin:jira-software # Required for reading board configuration
-    - read:issue:jira # Required for reading issues and JQL search
-    - write:issue:jira # Required for creating/updating issues
-    - write:comment:jira # Required for adding comments
-    - read:user:jira # Required for reading user info
-    - storage:app # Standard Forge storage
+    # === JIRA PLATFORM SCOPES (Granular) ===
+    # Docs: https://developer.atlassian.com/platform/forge/manifest-reference/scopes-product-jira/
+
+    - read:project:jira # Required for BoardDiscoveryService to read project info
+    - read:issue:jira # Required for JiraDataService to search issues (JQL) and read fields
+    - write:issue:jira # Required for Rovo Actions (update, assign, transition)
+    - write:comment:jira # Required for Rovo Actions (add-radio-message)
+    - read:user:jira # Required for identifying assignees and user context
+
+    # === JIRA SOFTWARE SCOPES (Agile) ===
+    # Docs: https://developer.atlassian.com/platform/forge/manifest-reference/scopes-product-jsw/
+
+    - read:board-scope:jira-software # Required for BoardDiscoveryService (detect boards) and Kanban issues
+    - read:sprint:jira-software # Required for reading active/closed sprints in Scrum mode
+    - read:board-scope.admin:jira-software # Required to read board configuration (filter ID)
+
+    # === FORGE PLATFORM SCOPES ===
+    - storage:app # Required for storing telemetry configuration
 
   content:
     styles:
