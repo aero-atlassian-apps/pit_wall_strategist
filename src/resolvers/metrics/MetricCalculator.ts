@@ -33,9 +33,10 @@ export class MetricCalculator {
 
         // Story Points / Completion
         const getPoints = (issue: JiraIssue) => {
-            if (!storyPointsField) return 1; // Fallback to item count if no field
-            const val = (issue.fields as any)[storyPointsField];
-            return typeof val === 'number' ? val : 0;
+            const hasField = Boolean(storyPointsField) && Object.prototype.hasOwnProperty.call(issue.fields as any, storyPointsField as any);
+            if (!hasField) return 1;
+            const val = (issue.fields as any)[storyPointsField as any];
+            return typeof val === 'number' ? val : 1;
         };
 
         const totalStoryPoints = issues.reduce((sum, i) => sum + getPoints(i), 0);
@@ -162,13 +163,40 @@ export class MetricCalculator {
                     window: `${closedSprints.length} closed sprints`
                 };
             }
-            // Fallback: use historicalIssues per-sprint aggregation if sprint fetch yielded no data
+            // Fallback 1: use provided historicalIssues per-sprint aggregation if sprint fetch yielded no data
             const doneIssuesHist = historicalIssues.filter(i => this.categorizer.getStatusCategory(i) === this.config.statusCategories.done);
             const totalPointsHist = doneIssuesHist.reduce((sum, i) => {
                  const val = storyPointsField ? (i.fields as any)[storyPointsField] : 1;
                  return sum + (typeof val === 'number' ? val : 1);
             }, 0);
-            const avgVelocity = closedSprints.length ? Math.round(totalPointsHist / closedSprints.length) : 0;
+            let avgVelocity = closedSprints.length ? Math.round(totalPointsHist / closedSprints.length) : 0;
+
+            // Fallback 2: if historicalIssues are empty too, fetch via app-scoped JQL `sprint in (ids)`
+            if ((!historicalIssues || historicalIssues.length === 0) && closedSprints.length) {
+                try {
+                    const sprintIds = closedSprints.map(s => s.id).join(',');
+                    const fields: string[] = ['status','created','updated','resolutiondate'];
+                    if (storyPointsField) fields.push(storyPointsField);
+                    const jql = `sprint in (${sprintIds}) AND statusCategory = Done`;
+                    const dataService = new JiraDataService();
+                    const res = await (dataService as any).searchJqlAsApp(jql, fields, 500, ['changelog']);
+                    const fetched = res?.ok ? (res.issues as JiraIssue[]) : [];
+                    const points = fetched.reduce((sum, i) => {
+                        const val = storyPointsField ? (i.fields as any)[storyPointsField] : 1;
+                        return sum + (typeof val === 'number' ? val : 1);
+                    }, 0);
+                    avgVelocity = closedSprints.length ? Math.round(points / closedSprints.length) : 0;
+                    if (avgVelocity > 0) {
+                        return {
+                            velocity: avgVelocity,
+                            explanation: `Average completed ${storyPointsField ? 'points' : 'issues'} across ${closedSprints.length} closed sprints (JQL fallback).`,
+                            source: 'app:jqlClosedSprints',
+                            window: `${closedSprints.length} closed sprints`
+                        };
+                    }
+                } catch {}
+            }
+
             return {
                 velocity: avgVelocity,
                 explanation: `Average completed ${storyPointsField ? 'points' : 'issues'} over last ${closedSprints.length} sprints (fallback).`,

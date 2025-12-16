@@ -6,12 +6,13 @@
   "scripts": {
     "login": "forge login",
     "lint": "forge lint",
+    "predeploy": "npm run build:diagnostics",
     "deploy": "forge deploy",
     "install:app": "forge install",
     "install:app-upgrade": "forge install --upgrade",
     "uninstall:app": "forge uninstall",
     "eligibility:check": "forge eligibility",
-    "tunnel": "forge tunnel",
+    "tunnel": "forge tunnel --verbose",
     "logs": "forge logs",
     "set:platform:local": "forge variables set PLATFORM local",
     "set:platform:atlassian": "forge variables set PLATFORM atlassian",
@@ -19,7 +20,8 @@
     "test:unit": "vitest --dir tests/unit --coverage",
     "test:integration": "vitest --dir tests/integration",
     "test:e2e": "playwright test",
-    "deploy:full": "cd static/frontend && npm run build:atlassian && cd ../.. && forge deploy && forge install --upgrade"
+    "build:diagnostics": "tsc -p static/diagnostics/tsconfig.json",
+    "deploy:full": "cd static/frontend && npm run build:atlassian && cd ../.. && npm run build:diagnostics && forge deploy && forge install --upgrade"
   },
   "dependencies": {
     "@forge/api": "^3.0.0",

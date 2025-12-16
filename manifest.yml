@@ -257,13 +257,15 @@ modules:
 resources:
   - key: main-ui
     path: static/frontend/build
+    tunnel:
+      port: 3000
 
 permissions:
   scopes:
-    - read:jira-work
-    - write:jira-work
-    - read:jira-user
-    - manage:jira-project
+    #- read:jira-work
+    #- write:jira-work
+    #- read:jira-user
+    #- manage:jira-project
     - read:project:jira
     - read:board-scope:jira-software
     - read:sprint:jira-software
@@ -271,6 +273,10 @@ permissions:
     - read:issue:jira
     - read:issue:jira-software
     - read:filter:jira
+    - read:issue-details:jira
+    - write:issue:jira
+    - write:comment:jira
+    - read:user:jira
     - storage:app
 
   content:

@@ -1,12 +1,35 @@
 import api, { route } from '@forge/api';
 import { JiraIssue, JiraSearchResult } from '../../types/jira';
+import { recordFetchStatus } from '../fetchStatus';
 import { Sprint } from '../../types/telemetry';
 
 export class JiraDataService {
-  async searchJqlUserOnly(jql: string, fields: string[], limit = 100, expand?: string[]): Promise<{ ok: boolean, issues: JiraIssue[], status?: number }> {
+  async searchJqlAsApp(jql: string, fields: string[], limit = 100, expand?: string | string[]): Promise<{ ok: boolean, issues: JiraIssue[], status?: number }> {
     const body: any = { jql, maxResults: limit, fields };
     if (expand) {
-        body.expand = expand;
+        body.expand = Array.isArray(expand) ? expand.join(',') : expand;
+    }
+    const resp = await api.asApp().requestJira(route`/rest/api/3/search/jql`, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+
+    if (!resp.ok) {
+        const text = await resp.text();
+        console.log(`[Telemetry] JQL POST (asApp) Error: ${resp.status} ${text}`);
+        recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asApp)', ok: false, status: resp.status });
+        return { ok: false, issues: [], status: resp.status };
+    }
+
+    const data = await resp.json() as JiraSearchResult;
+    recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asApp)', ok: true, status: 200 });
+    return { ok: true, issues: data?.issues || [] };
+  }
+  async searchJqlUserOnly(jql: string, fields: string[], limit = 100, expand?: string | string[]): Promise<{ ok: boolean, issues: JiraIssue[], status?: number }> {
+    const body: any = { jql, maxResults: limit, fields };
+    if (expand) {
+        body.expand = Array.isArray(expand) ? expand.join(',') : expand;
     }
     const resp = await api.asUser().requestJira(route`/rest/api/3/search/jql`, {
         method: 'POST',
@@ -17,10 +40,12 @@ export class JiraDataService {
     if (!resp.ok) {
         const text = await resp.text();
         console.log(`[Telemetry] JQL POST Error: ${resp.status} ${text}`);
+        recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asUser)', ok: false, status: resp.status });
         return { ok: false, issues: [], status: resp.status };
     }
 
     const data = await resp.json() as JiraSearchResult;
+    recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asUser)', ok: true, status: 200 });
     return { ok: true, issues: data?.issues || [] };
   }
 
@@ -30,6 +55,11 @@ export class JiraDataService {
           const data = await response.json();
           if (data.values?.length) return data.values[0];
       }
+      if (!response.ok) {
+          try { const txt = await response.text(); console.log(`[Telemetry] getBoardActiveSprint Error: ${response.status} ${txt}`) } catch {}
+          recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=active`, ok: false, status: response.status });
+      }
+      else { recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=active`, ok: true, status: 200 }); }
       return null;
   }
 
@@ -39,6 +69,11 @@ export class JiraDataService {
           const data = await response.json();
           if (data.values?.length) return data.values[0];
       }
+      if (!response.ok) {
+          try { const txt = await response.text(); console.log(`[Telemetry] getBoardFutureSprints Error: ${response.status} ${txt}`) } catch {}
+          recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=future`, ok: false, status: response.status });
+      }
+      else { recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=future`, ok: true, status: 200 }); }
       return null;
   }
 
@@ -55,8 +90,11 @@ export class JiraDataService {
           // The API returns sprints in order. We want the most recent ones.
           const sprints = data.values || [];
           // If we have more than limit, take the last 'limit' ones (most recent)
+          recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=closed`, ok: true, status: 200 });
           return sprints.slice(-limit);
       }
+      try { const txt = await response.text(); console.log(`[Telemetry] getClosedSprints Error: ${response.status} ${txt}`) } catch {}
+      recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=closed`, ok: false, status: response.status });
       return [];
   }
 
@@ -68,8 +106,11 @@ export class JiraDataService {
       const response = await api.asApp().requestJira(url, { headers: { Accept: 'application/json' } })
       if (response.ok) {
           const data = await response.json()
+          recordFetchStatus({ endpoint: `/rest/agile/1.0/sprint/${sprintId}/issue`, ok: true, status: 200 });
           return data.issues || []
       }
+      try { const txt = await response.text(); console.log(`[Telemetry] getSprintIssues Error: ${response.status} ${txt}`) } catch {}
+      recordFetchStatus({ endpoint: `/rest/agile/1.0/sprint/${sprintId}/issue`, ok: false, status: response.status });
       return []
   }
 
@@ -82,12 +123,14 @@ export class JiraDataService {
   async getKanbanBoardIssues(boardId: number): Promise<JiraIssue[]> {
       const response = await api.asApp().requestJira(
         route`/rest/agile/1.0/board/${boardId}/issue?maxResults=100`,
-        { headers: { Accept: 'application/json' } }
+       { headers: { Accept: 'application/json' } }
       );
       if (response.ok) {
           const data = await response.json();
+          recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/issue`, ok: true, status: 200 });
           return data.issues || [];
       }
+      recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/issue`, ok: false, status: response.status });
       return [];
   }
 }

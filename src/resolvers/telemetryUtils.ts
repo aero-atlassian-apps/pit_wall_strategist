@@ -2,6 +2,7 @@ import type { BoardData, TelemetryConfig, TelemetryData, BoardContext } from '..
 import type { JiraIssue } from '../types/jira';
 import { BoardDiscoveryService } from './board/BoardDiscoveryService';
 import { JiraDataService } from './data/JiraDataService';
+import { issueSearchService } from './data/IssueSearchService';
 import { IssueCategorizer } from './issue/IssueCategorizer';
 import { MetricCalculator } from './metrics/MetricCalculator';
 import { fieldDiscoveryService } from './data/FieldDiscoveryService';
@@ -86,10 +87,8 @@ async function fetchScrumData(boardCtx: BoardContext, config: TelemetryConfig, p
         }
 
         // We fetch changelog for Cycle Time calculation
-        const historyRes = await dataService.searchJqlUserOnly(historyJql, fieldsToFetch, 500, ['changelog']);
-        if (historyRes.ok) {
-            historicalIssues = historyRes.issues;
-        }
+        const historyRes = await issueSearchService.search(historyJql, fieldsToFetch, false);
+        historicalIssues = historyRes.ok ? historyRes.issues : [];
     }
 
     if (!activeSprint) {
@@ -122,7 +121,7 @@ async function fetchScrumData(boardCtx: BoardContext, config: TelemetryConfig, p
     }
 
     const initialJql = `sprint = ${activeSprint.id}`;
-    const initialJqlRes = await dataService.searchJqlUserOnly(initialJql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels'], 100);
+    const initialJqlRes = await issueSearchService.search(initialJql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels'], false);
 
     const sprintObj = {
         id: activeSprint.id,

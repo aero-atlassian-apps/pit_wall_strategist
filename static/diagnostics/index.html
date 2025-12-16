@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Telemetry Diagnostics</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="tabs">
+    <button data-tab="status" class="tab active">Statuses</button>
+    <button data-tab="metrics" class="tab">Metrics</button>
+    <button data-tab="permissions" class="tab">Permissions</button>
+  </div>
+  <div class="box" id="panel-status">
+    <div class="row">
+      <div class="card"><div class="label">Velocity Source</div><div id="velocitySource" class="value">-</div></div>
+      <div class="card"><div class="label">Velocity Window</div><div id="velocityWindow" class="value">-</div></div>
+    </div>
+    <div class="table">
+      <div class="table-header"><div>Endpoint</div><div>Status</div><div>OK</div></div>
+      <div id="statusRows" class="table-body"></div>
+    </div>
+  </div>
+
+  <div class="box hidden" id="panel-metrics">
+    <div class="row">
+      <div class="card"><div class="label">Cycle Time Window</div><div id="cycleTimeWindow" class="value">-</div></div>
+      <div class="card"><div class="label">Throughput Window</div><div id="throughputWindow" class="value">-</div></div>
+    </div>
+    <div class="row">
+      <div class="card"><div class="label">Board Type</div><div id="boardType" class="value">-</div></div>
+      <div class="card"><div class="label">Sprint/Period</div><div id="sprintName" class="value">-</div></div>
+    </div>
+  </div>
+
+  <div class="box hidden" id="panel-permissions">
+    <div class="row">
+      <div class="card"><div class="label">User Browse</div><div id="permUser" class="value">-</div></div>
+      <div class="card"><div class="label">App Browse</div><div id="permApp" class="value">-</div></div>
+    </div>
+  </div>
+  <script type="module" src="build/main.js"></script>
+</body>
+</html>

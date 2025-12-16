@@ -6,6 +6,7 @@ import StatusLight from '../Common/StatusLight'
 import { IconButton, RefreshIcon } from '../Common/Buttons'
 import { t } from '../../i18n'
 import { useBoardContext } from '../../context/BoardContext'
+import DiagnosticsWidget from './DiagnosticsWidget'
 
 const DeckContainer = styled.div`
   display: flex;
@@ -220,6 +221,7 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                                 </ProgressBar>
                             </BarContainer>
                         ))}
+                        <DiagnosticsWidget />
                     </div>
                 )}
 
@@ -243,6 +245,7 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                                 invertColors={true}
                             />
                         </div>
+                        <DiagnosticsWidget />
                     </div>
                 )}
 

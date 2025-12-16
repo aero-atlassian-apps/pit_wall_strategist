@@ -8,6 +8,7 @@ import { cacheGet, cacheSet } from './cache'
 import { calculateWipTrend, calculateVelocityTrend } from './trendMetrics'
 import { checkProjectDevOpsStatus, detectNoCommitIssues, getMockDevOpsData } from './devOpsDetection'
 import type { TelemetryConfig, TelemetryData, CategorizedIssue, BoardData, SectorTimes, LeadTimeResult, TrendData, StalledTicket } from '../types/telemetry'
+import { getFetchStatuses } from './fetchStatus'
 import { mockTelemetry, mockIssues, mockTiming, mockTrends, mockDevOps } from './mocks'
 import { splitTicket, reassignTicket, deferTicket, handleAction } from './rovoActions'
 import { getProjectContext, getContextSummary, type ProjectContext } from './contextEngine'
@@ -124,16 +125,16 @@ resolver.define('getTelemetryData', async ({ context }: any) => {
         periodName = boardData.sprint.name
     }
 
-    // Resolve locale (server-side i18n)
+    // Resolve locale (server-side i18n) without requiring asUser consent
     const supported = ['en', 'fr', 'es', 'pt'] as const
     let locale: typeof supported[number] = 'en'
-    try {
-      const resp = await (await import('@forge/api')).default.asUser().requestJira((await import('@forge/api')).route`/rest/api/3/myself`, { headers: { Accept: 'application/json' } })
-      if (resp.ok) { const me = await resp.json(); const code = (me?.locale || '').toString().toLowerCase().slice(0, 2) as typeof supported[number]; locale = (supported as readonly string[]).includes(code) ? code : 'en' }
-      if (userConfig?.locale && (supported as readonly string[]).includes(userConfig.locale)) locale = userConfig.locale as typeof supported[number]
-    } catch {}
+    if (userConfig?.locale && (supported as readonly string[]).includes(userConfig.locale)) {
+      locale = userConfig.locale as typeof supported[number]
+    }
 
-    return { success: true, data: { ...telemetry, sprintName: periodName, stalledTickets, feed: generateFeed(telemetry, stalledTickets, boardData.boardType, locale), alertActive: stalledTickets.length > 0 } }
+    const fetchStatuses = getFetchStatuses()
+    const diagnostics = { velocitySource: telemetry.velocitySource, velocityWindow: telemetry.velocityWindow, fetchStatuses }
+    return { success: true, data: { ...telemetry, sprintName: periodName, stalledTickets, diagnostics, feed: generateFeed(telemetry, stalledTickets, boardData.boardType, locale, fetchStatuses), alertActive: stalledTickets.length > 0 } }
   } catch (error: any) {
     console.error('Error fetching telemetry:', error)
     return { success: false, error: error.message || 'Failed to fetch telemetry data' }
@@ -236,6 +237,60 @@ resolver.define('getTrendData', async ({ context }: any) => {
     console.error('Error fetching trend data:', error)
     return { success: false, error: error.message }
   }
+})
+
+resolver.define('getTelemetryDiagnostics', async ({ context }: any) => {
+  try {
+    if (PLATFORM === 'local') return { success: true, diagnostics: { velocitySource: 'mock', velocityWindow: 'mock', fetchStatuses: [] } }
+    const projectKey = context.extension.project.key as string
+    const boardData: BoardData = await fetchBoardData(projectKey, userConfig, context)
+    const statusMap = await getProjectStatusMap(projectKey)
+    const telemetry: TelemetryData = await calculateTelemetry(boardData, userConfig, statusMap)
+    const fetchStatuses = getFetchStatuses()
+    return {
+      success: true,
+      diagnostics: {
+        velocitySource: telemetry.velocitySource,
+        velocityWindow: telemetry.velocityWindow,
+        cycleTimeWindow: telemetry.cycleTimeWindow,
+        throughputWindow: telemetry.throughputWindow,
+        fetchStatuses,
+        boardType: boardData.boardType,
+        sprintName: boardData.sprint?.name || boardData.boardName
+      }
+    }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+})
+
+resolver.define('getDiagnosticsSummary', async ({ context }: any) => {
+  try {
+    if (PLATFORM === 'local') return { success: true, summary: { telemetry: {}, trends: {}, permissions: {}, fetchStatuses: [] } }
+    const projectKey = context.extension.project.key as string
+    const boardData: BoardData = await fetchBoardData(projectKey, userConfig, context)
+    const statusMap = await getProjectStatusMap(projectKey)
+    const telemetry: TelemetryData = await calculateTelemetry(boardData, userConfig, statusMap)
+    const wipTrend: TrendData = await calculateWipTrend(projectKey)
+    const velocityTrend: TrendData = await calculateVelocityTrend(projectKey)
+    // Permissions quick check
+    const apiMod = await import('@forge/api')
+    const route = apiMod.route
+    const userPerm = await apiMod.default.asUser().requestJira(route`/rest/api/3/mypermissions?projectKey=${projectKey}&permissions=BROWSE`, { headers: { Accept: 'application/json' } })
+    const appPerm = await apiMod.default.asApp().requestJira(route`/rest/api/3/mypermissions?projectKey=${projectKey}&permissions=BROWSE`, { headers: { Accept: 'application/json' } })
+    const permissions = { userBrowse: (await userPerm.json())?.permissions?.BROWSE?.havePermission === true, appBrowse: (await appPerm.json())?.permissions?.BROWSE?.havePermission === true }
+    const fetchStatuses = getFetchStatuses()
+    return {
+      success: true,
+      summary: {
+        telemetry,
+        trends: { wip: wipTrend, velocity: velocityTrend },
+        permissions,
+        fetchStatuses,
+        context: { boardType: boardData.boardType, sprintName: boardData.sprint?.name || boardData.boardName }
+      }
+    }
+  } catch (error: any) { return { success: false, error: error.message } }
 })
 
 // === SAFe Flow Metrics (F1: Race Strategy Analysis) ===
@@ -739,7 +794,7 @@ resolver.define('getAssignableUsers', async ({ payload, context }: any) => {
   } catch (error: any) { return { success: false, error: error.message } }
 })
 
-function generateFeed(telemetry: TelemetryData, stalledTickets: StalledTicket[], boardType: 'scrum' | 'kanban' | 'business', locale: 'en' | 'fr' | 'es' | 'pt') {
+function generateFeed(telemetry: TelemetryData, stalledTickets: StalledTicket[], boardType: 'scrum' | 'kanban' | 'business', locale: 'en' | 'fr' | 'es' | 'pt', fetchStatuses?: Array<{ endpoint: string; ok: boolean; status?: number }>) {
   const FEED_I18N: Record<string, Record<string, string>> = {
     en: { raceStartSprint: 'Sprint Race', raceStartEndurance: 'Endurance Race', greenFlagStarted: 'Green Flag. {race} Started.', sectorClear: 'Sector 1 Clear. Good pace.', fuelWarn: 'WARN: Fuel load approaching limit.', wipCritical: 'CRITICAL: WIP limit exceeded! Reduce fuel load.', dragDetected: '{key} High Drag Detected.', stalledBox: '{key} Stalled > {hours}h. BOX BOX!' },
     fr: { raceStartSprint: 'Course Sprint', raceStartEndurance: "Course d'Endurance", greenFlagStarted: 'Drapeau Vert. {race} démarrée.', sectorClear: 'Secteur 1 dégagé. Bon rythme.', fuelWarn: "ALERTE : Charge de carburant proche de la limite.", wipCritical: 'CRITIQUE : Limite WIP dépassée ! Réduire la charge.', dragDetected: '{key} Traînée élevée détectée.', stalledBox: '{key} En panne > {hours}h. BOX BOX !' },
@@ -751,6 +806,15 @@ function generateFeed(telemetry: TelemetryData, stalledTickets: StalledTicket[],
   const now = new Date()
   const raceType = boardType === 'kanban' ? dict.raceStartEndurance : dict.raceStartSprint
   feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 4), locale), msg: dict.greenFlagStarted.replace('{race}', raceType), type: 'info' })
+  if (telemetry.velocitySource || telemetry.velocityWindow) {
+    const src = telemetry.velocitySource || 'unknown'
+    const win = telemetry.velocityWindow || 'unknown'
+    feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 3.5), locale), msg: `Diagnostics: velocitySource=${src}, window=${win}`, type: 'info' })
+  }
+  if (fetchStatuses && fetchStatuses.length) {
+    const recent = fetchStatuses.slice(-3).map(s => `${s.ok ? 'OK' : 'ERR'} ${s.status ?? ''} ${s.endpoint}`).join(' | ')
+    feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 3.25), locale), msg: `Fetch Status: ${recent}`, type: 'info' })
+  }
   if (telemetry.wipLoad < 80) feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 2), locale), msg: dict.sectorClear, type: 'success' })
   if (telemetry.wipLoad >= 80 && telemetry.wipLoad < 100) feed.push({ time: formatTime(new Date(now.getTime() - 3600000), locale), msg: dict.fuelWarn, type: 'warning' })
   if (telemetry.wipLoad >= 100) feed.push({ time: formatTime(new Date(now.getTime() - 1800000), locale), msg: dict.wipCritical, type: 'critical' })

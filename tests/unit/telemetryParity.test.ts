@@ -48,6 +48,45 @@ describe('telemetry parity and correctness', () => {
     expect(res.window).toContain('closed sprints')
   })
 
+  it('Velocity falls back to app-scoped JQL when sprint issues empty', async () => {
+    const jqlIssues = {
+      issues: [
+        { fields: { status: { statusCategory: { key: 'done' } }, resolutiondate: new Date().toISOString(), customfield_10016: 5 } },
+        { fields: { status: { statusCategory: { key: 'done' } }, resolutiondate: new Date().toISOString(), customfield_10016: 3 } }
+      ]
+    }
+    const requester = async (url: string) => mkOk({})
+    vi.resetModules()
+    vi.doMock('@forge/api', () => ({ default: { asApp: () => ({ requestJira: requester }) }, route }))
+    vi.doMock('../../src/resolvers/data/JiraDataService', () => ({
+      JiraDataService: class {
+        async getSprintIssues(){ return [] }
+        async searchJqlAsApp(){ return { ok: true, issues: jqlIssues.issues } }
+      }
+    }))
+    const { MetricCalculator } = await import('../../src/resolvers/metrics/MetricCalculator')
+    const calc = new MetricCalculator(new IssueCategorizer(), { statusCategories: { todo: 'new', inProgress: 'indeterminate', done: 'done' }, wipLimit: 8, assigneeCapacity: 3, stalledThresholdHours: 24, storyPointsFieldName: 'Story Points' } as any)
+    const res = await (calc as any).calculateVelocity([{ id: 1, name: 'Sprint 1', startDate: new Date(Date.now()-14*24*3600000).toISOString(), endDate: new Date().toISOString(), state: 'closed' }], [], 'customfield_10016', 'scrum')
+    expect(res.velocity).toBeGreaterThanOrEqual(1)
+    expect(res.source).toBe('app:jqlClosedSprints')
+  })
+
+  it('Completion uses item counts when Story Points missing', async () => {
+    const issues = [
+      { key: 'A-1', fields: { status: { name: 'To Do', statusCategory: { key: 'new' } }, assignee: { displayName: 'u' }, updated: new Date().toISOString(), created: new Date().toISOString(), labels: [] } },
+      { key: 'A-2', fields: { status: { name: 'In Progress', statusCategory: { key: 'indeterminate' } }, assignee: { displayName: 'u' }, updated: new Date().toISOString(), created: new Date().toISOString(), labels: [] } },
+      { key: 'A-3', fields: { status: { name: 'Done', statusCategory: { key: 'done' } }, assignee: { displayName: 'u' }, updated: new Date().toISOString(), created: new Date().toISOString(), resolutiondate: new Date().toISOString(), labels: [] } }
+    ]
+    const requester = async (url: string) => mkOk({})
+    vi.resetModules()
+    vi.doMock('@forge/api', () => ({ default: { asApp: () => ({ requestJira: requester }) }, route }))
+    vi.doMock('../../src/resolvers/data/FieldDiscoveryService', () => ({ fieldDiscoveryService: { discoverCustomFields: async () => ({ storyPoints: null }) } }))
+    const { MetricCalculator } = await import('../../src/resolvers/metrics/MetricCalculator')
+    const calc = new MetricCalculator(new IssueCategorizer(), { statusCategories: { todo: 'new', inProgress: 'indeterminate', done: 'done' }, wipLimit: 8, assigneeCapacity: 3, stalledThresholdHours: 24, storyPointsFieldName: 'Story Points' } as any)
+    const telemetry = await calc.calculate({ boardType: 'scrum', boardId: 1, boardName: 'Board', issues } as any)
+    expect(telemetry.completion).toBeGreaterThan(0)
+  })
+
   it('Default cycle time returns empty sectors', async () => {
     const sectors = await calculateCycleTime([], {})
     expect(Object.keys(sectors).length).toBe(0)
