@@ -419,7 +419,7 @@ resolver.define('getDevOpsStatus', async ({ context }: any) => {
 resolver.define('getPermissionsDiagnostics', async ({ context }: any) => {
   try {
     const projectKey = context.extension.project.key as string
-    const guard = SecurityGuard.getInstance();
+    const guard = new SecurityGuard();
     const status = await guard.validateContext(projectKey);
 
     return {
@@ -439,14 +439,14 @@ resolver.define('getPermissionsDiagnostics', async ({ context }: any) => {
 resolver.define('getHealth', async ({ context }: any) => {
   try {
     const projectKey = context?.extension?.project?.key as string
-    const guard = SecurityGuard.getInstance();
+    const guard = new SecurityGuard();
     const status = await guard.validateContext(projectKey);
 
     let boardInfo: any = null
-    if (status.canReadProject && status.permissions.userBrowse) {
+    if (status.canReadProject) {
         try { boardInfo = await detectBoardType(projectKey) } catch (e: any) { boardInfo = { error: e?.message || 'board detection failed' } }
     } else {
-        boardInfo = { error: 'Access Denied (User Permission Missing)' }
+        boardInfo = { error: 'Access Denied' }
     }
 
     const fields = await discoverCustomFields()
@@ -467,11 +467,11 @@ resolver.define('getHealth', async ({ context }: any) => {
 resolver.define('getDiagnosticsDetails', async ({ context }: any) => {
   try {
     const projectKey = context?.extension?.project?.key as string
-    const guard = SecurityGuard.getInstance();
+    const guard = new SecurityGuard();
     const status = await guard.validateContext(projectKey);
 
     let boardInfo: any = null
-    if (status.canReadProject && status.permissions.userBrowse) {
+    if (status.canReadProject) {
         try { boardInfo = await detectBoardType(projectKey) } catch (e: any) { boardInfo = { error: e?.message || 'board detection failed' } }
     } else {
         boardInfo = { error: 'Access Denied: ' + status.messages.join(', ') }
@@ -510,6 +510,38 @@ resolver.define('getDiagnosticsDetails', async ({ context }: any) => {
   } catch (error: any) {
     return { success: false, error: error.message }
   }
+})
+
+resolver.define('getAccessProbe', async ({ context }: any) => {
+  try {
+    const projectKey = context?.extension?.project?.key as string
+    const apiMod = await import('@forge/api')
+    const route = apiMod.route
+    const results: Array<{ endpoint: string; ok: boolean; status?: number }> = []
+
+    const push = (label: string, resp: any) => {
+      if (!resp) { results.push({ endpoint: label, ok: false, status: undefined }); return }
+      results.push({ endpoint: label, ok: !!resp.ok, status: resp.status })
+    }
+
+    const pUser = await apiMod.default.asUser().requestJira(route`/rest/api/3/project/${projectKey}`, { headers: { Accept: 'application/json' } })
+    push('GET project (asUser)', pUser)
+    const pApp = await apiMod.default.asApp().requestJira(route`/rest/api/3/project/${projectKey}`, { headers: { Accept: 'application/json' } })
+    push('GET project (asApp)', pApp)
+
+    const bUser = await apiMod.default.asUser().requestJira(route`/rest/agile/1.0/board?projectKeyOrId=${projectKey}`, { headers: { Accept: 'application/json' } })
+    push('GET boards (asUser)', bUser)
+    const bApp = await apiMod.default.asApp().requestJira(route`/rest/agile/1.0/board?projectKeyOrId=${projectKey}`, { headers: { Accept: 'application/json' } })
+    push('GET boards (asApp)', bApp)
+
+    const body = { jql: `project = "${projectKey}" ORDER BY updated DESC`, maxResults: 1, fields: ['summary'] }
+    const sApp = await apiMod.default.asApp().requestJira(route`/rest/api/3/search/jql`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    push('POST search/jql (asApp)', sApp)
+    const sUser = await apiMod.default.asUser().requestJira(route`/rest/api/3/search/jql`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    push('POST search/jql (asUser)', sUser)
+
+    return { success: true, results }
+  } catch (error: any) { return { success: false, error: error.message } }
 })
 
 // ============================================================================
@@ -825,9 +857,10 @@ function generateFeed(telemetry: TelemetryData, stalledTickets: StalledTicket[],
     const recent = fetchStatuses.slice(-3).map(s => `${s.ok ? 'OK' : 'ERR'} ${s.status ?? ''} ${s.endpoint}`).join(' | ')
     feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 3.25), locale), msg: `Fetch Status: ${recent}`, type: 'info' })
   }
-  if (telemetry.wipLoad < 80) feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 2), locale), msg: dict.sectorClear, type: 'success' })
-  if (telemetry.wipLoad >= 80 && telemetry.wipLoad < 100) feed.push({ time: formatTime(new Date(now.getTime() - 3600000), locale), msg: dict.fuelWarn, type: 'warning' })
-  if (telemetry.wipLoad >= 100) feed.push({ time: formatTime(new Date(now.getTime() - 1800000), locale), msg: dict.wipCritical, type: 'critical' })
+  const wipLoad = telemetry.wipLoad ?? 0
+  if (wipLoad < 80) feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 2), locale), msg: dict.sectorClear, type: 'success' })
+  if (wipLoad >= 80 && wipLoad < 100) feed.push({ time: formatTime(new Date(now.getTime() - 3600000), locale), msg: dict.fuelWarn, type: 'warning' })
+  if (wipLoad >= 100) feed.push({ time: formatTime(new Date(now.getTime() - 1800000), locale), msg: dict.wipCritical, type: 'critical' })
   stalledTickets.forEach(ticket => {
     feed.push({ time: formatTime(new Date(now.getTime() - 1800000), locale), msg: dict.dragDetected.replace('{key}', ticket.key), type: 'warning' })
     feed.push({ time: formatTime(now, locale), msg: dict.stalledBox.replace('{key}', ticket.key).replace('{hours}', String(ticket.hoursSinceUpdate)), type: 'critical' })

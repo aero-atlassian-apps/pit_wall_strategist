@@ -32,8 +32,8 @@ export class IssueSearchService {
 
     // Try asApp first
     let resp = await api.asApp().requestJira(route`/rest/api/3/search/jql`, { method: 'POST', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    if (!resp.ok && resp.status === 401) {
-      // Fallback to asUser once for consent-based access
+    if (!resp.ok && (resp.status === 401 || resp.status === 403)) {
+      // Fallback to asUser once for consent-based or permission-based access
       resp = await api.asUser().requestJira(route`/rest/api/3/search/jql`, { method: 'POST', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     }
     if (!resp.ok) {

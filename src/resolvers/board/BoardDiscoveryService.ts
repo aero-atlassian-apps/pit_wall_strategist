@@ -24,11 +24,12 @@ export class BoardDiscoveryService {
 
     // Try to get agile boards
     // Changed to asUser()
-    const response = await api.asUser().requestJira(route`/rest/agile/1.0/board?projectKeyOrId=${projectKey}`, { headers: { Accept: 'application/json' } });
-
+    let response = await api.asUser().requestJira(route`/rest/agile/1.0/board?projectKeyOrId=${projectKey}`, { headers: { Accept: 'application/json' } });
     if (!response.ok) {
-      console.log(`[Telemetry] Agile API failed for ${projectKey}, falling back to business mode`);
-      return { boardType: 'business', boardId: null, boardName: 'Work Items' };
+      response = await api.asApp().requestJira(route`/rest/agile/1.0/board?projectKeyOrId=${projectKey}`, { headers: { Accept: 'application/json' } });
+      if (!response.ok) {
+        return { boardType: 'business', boardId: null, boardName: 'Work Items' };
+      }
     }
 
     const boards = await response.json();
@@ -37,8 +38,26 @@ export class BoardDiscoveryService {
       return { boardType: 'business', boardId: null, boardName: 'Work Items' };
     }
 
-    // TODO: Logic to select the "current" board if multiple exist. Currently defaults to the first one.
-    const board = boards.values[0];
+    const list = Array.isArray(boards.values) ? boards.values : [];
+    let candidates = list.filter((b: any) => (b?.location?.projectKey || '').toString().toUpperCase() === projectKey.toUpperCase());
+    if (!candidates.length) candidates = list;
+
+    let selected = candidates[0];
+    try {
+      const scrumCandidates = candidates.filter((b: any) => (b?.type || '').toLowerCase() === 'scrum');
+      for (const b of scrumCandidates) {
+        let sresp = await api.asUser().requestJira(route`/rest/agile/1.0/board/${b.id}/sprint?state=active`, { headers: { Accept: 'application/json' } });
+        if (!sresp.ok) {
+          sresp = await api.asApp().requestJira(route`/rest/agile/1.0/board/${b.id}/sprint?state=active`, { headers: { Accept: 'application/json' } });
+        }
+        if (sresp.ok) {
+          const sjson = await sresp.json();
+          if (sjson?.values?.length) { selected = b; break; }
+        }
+      }
+    } catch {}
+
+    const board = selected;
     console.log(`Detected board: ${board.name} (${board.id}) for project ${projectKey}`);
     return { boardType: (board.type || 'scrum') as 'scrum' | 'kanban', boardId: board.id as number, boardName: board.name as string };
   }
@@ -50,9 +69,11 @@ export class BoardDiscoveryService {
    */
   private async detectProjectType(projectKey: string): Promise<'software' | 'business'> {
     try {
-      // Changed to asUser()
-      const resp = await api.asUser().requestJira(route`/rest/api/3/project/${projectKey}`, { headers: { Accept: 'application/json' } });
-      if (!resp.ok) return 'software'; // Default to software if can't detect
+      let resp = await api.asUser().requestJira(route`/rest/api/3/project/${projectKey}`, { headers: { Accept: 'application/json' } });
+      if (!resp.ok) {
+        resp = await api.asApp().requestJira(route`/rest/api/3/project/${projectKey}`, { headers: { Accept: 'application/json' } });
+        if (!resp.ok) return 'software';
+      }
       const project = await resp.json();
       // Business projects have projectTypeKey = 'business' or style = 'next-gen'/'basic' without boards
       if (project.projectTypeKey === 'business') {

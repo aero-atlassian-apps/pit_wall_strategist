@@ -34,9 +34,7 @@ export async function fetchBoardData(projectKey: string, config: TelemetryConfig
         security = await guard.validateContext(projectKey);
     }
 
-    // STRICT CHECK: The app primarily uses asUser() for data fetching.
-    // If the user lacks BROWSE_PROJECTS, we cannot fetch data even if the App has permission.
-    if (!security.canReadProject || !security.permissions.userBrowse) {
+    if (!security.permissions.userBrowse && !security.permissions.appBrowse) {
         console.warn(`[Telemetry] Access Denied for ${projectKey} (User Browse: ${security.permissions.userBrowse})`);
         return {
             boardType: 'business',
@@ -52,11 +50,11 @@ export async function fetchBoardData(projectKey: string, config: TelemetryConfig
 
     // If sprints are restricted (User lacks Agile permissions), force business mode (JQL only)
     // This prevents 401 errors from agile endpoints
-    if (!security.canReadSprints && boardInfo.boardType !== 'business') {
+    if (!security.permissions.userBrowse && boardInfo.boardType !== 'business') {
          console.warn(`[Telemetry] User lacks Agile permissions for ${projectKey}, falling back to Business/JQL mode.`);
          // If user cannot browse, even business fetch might fail if it uses asUser.
          // But we let it try or it will return empty if we add check inside fetchBusiness.
-         if (!security.permissions.userBrowse) {
+         if (!security.permissions.userBrowse && !security.permissions.appBrowse) {
              return { boardType: 'business', boardId: null, boardName: 'No Access', issues: [], historicalIssues: [] };
          }
          return fetchBusinessProjectData(projectKey, config);
@@ -76,7 +74,7 @@ export async function fetchBoardData(projectKey: string, config: TelemetryConfig
 async function fetchBusinessProjectData(projectKey: string, config?: TelemetryConfig): Promise<BoardData> {
     const jql = `project = "${projectKey}" ORDER BY updated DESC`;
     // Fetch generic issues for display
-    const result = await dataService.searchJqlUserOnly(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels'], 100);
+    const result = await issueSearchService.search(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels']);
 
     // Fetch historical data for flow metrics (last 30 days completed)
     const customFields = await fieldDiscoveryService.discoverCustomFields();
@@ -86,7 +84,7 @@ async function fetchBusinessProjectData(projectKey: string, config?: TelemetryCo
     if (storyPointsField) fields.push(storyPointsField);
 
     const historyJql = `project = "${projectKey}" AND statusCategory = Done AND updated >= -30d`;
-    const historyResult = await dataService.searchJqlUserOnly(historyJql, fields, 200, ['changelog']);
+    const historyResult = await issueSearchService.search(historyJql, fields, true);
 
     return {
         boardType: 'business',
@@ -131,7 +129,7 @@ async function fetchScrumData(boardCtx: BoardContext, config: TelemetryConfig, p
 
     if (!activeSprint && projectKey) {
         const jql = `project = "${projectKey}" AND sprint in openSprints()`;
-        const result = await dataService.searchJqlUserOnly(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels'], 100);
+        const result = await issueSearchService.search(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels']);
 
         if (result.ok && result.issues.length > 0) {
             return {
@@ -191,7 +189,7 @@ async function fetchKanbanData(boardCtx: BoardContext, config?: TelemetryConfig)
             if (storyPointsField) fields.push(storyPointsField);
 
              const historyJql = `project = "${projectKey}" AND statusCategory = Done AND updated >= -30d`;
-             const historyRes = await dataService.searchJqlUserOnly(historyJql, fields, 200, ['changelog']);
+        const historyRes = await issueSearchService.search(historyJql, fields, true);
              if (historyRes.ok) historicalIssues = historyRes.issues;
          }
     }
@@ -211,7 +209,7 @@ async function fetchAllBoardIssues(boardId: number, projectKey?: string, sprintI
     if (filterId) {
         let jql = `filter = ${filterId}`;
         if (sprintId) jql += ` AND sprint = ${sprintId}`;
-        const res = await dataService.searchJqlUserOnly(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels'], 100);
+        const res = await issueSearchService.search(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels']);
         if (res.ok) return res.issues;
     }
 

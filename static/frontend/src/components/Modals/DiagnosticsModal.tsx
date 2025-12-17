@@ -13,6 +13,7 @@ export default function DiagnosticsModal({ open, onClose, health }: Props) {
   const locale = (window as any).__PWS_LOCALE || 'en'
   const [diag, setDiag] = useState<any>(null)
   const [details, setDetails] = useState<any>(null)
+  const [probe, setProbe] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => { if (open) refresh() }, [open])
@@ -22,6 +23,7 @@ export default function DiagnosticsModal({ open, onClose, health }: Props) {
     try {
       const res = await invoke('getPermissionsDiagnostics'); if (res?.success) setDiag(res.permissions)
       const d = await invoke('getDiagnosticsDetails'); if (d?.success) setDetails(d)
+      const p = await invoke('getAccessProbe'); if (p?.success) setProbe(p.results)
     } catch { } finally { setLoading(false) }
   }
 
@@ -35,6 +37,12 @@ export default function DiagnosticsModal({ open, onClose, health }: Props) {
           <IconButton onClick={onClose} title={t('close', locale)}><CloseIcon /></IconButton>
         </Header>
         <Body>
+          {diag && !diag.userBrowse && diag.appBrowse && (
+            <KV>
+              <K>{t('status', locale)}</K>
+              <V>{'Viewing with app access; your user lacks Browse Projects'}</V>
+            </KV>
+          )}
           <Section>
             <SectionTitle>{t('healthCheck', locale)}</SectionTitle>
             <KV><K>{t('platform', locale)}</K><V>{health?.platform || 'local'}</V></KV>
@@ -69,6 +77,9 @@ export default function DiagnosticsModal({ open, onClose, health }: Props) {
             <KV><K>{t('filterJql', locale)}</K><V className="code">{details?.filter?.jql || 'n/a'}</V></KV>
             <KV><K>{t('sprintId', locale)}</K><V>{details?.sprint?.id ?? 'n/a'}</V></KV>
             <KV><K>{t('forgeScopes', locale)}</K><V className="code">{Array.isArray(details?.scopes) ? `${details.scopes.length} ${t('scopes', locale)}` : 'n/a'}</V></KV>
+            {Array.isArray(probe) && probe.length > 0 && probe.slice(-6).map((r: any, i: number) => (
+              <KV key={i}><K>{r.endpoint}</K><V $good={r.ok}>{`${r.ok ? 'OK' : 'ERR'} ${r.status ?? ''}`}</V></KV>
+            ))}
           </Section>
         </Body>
         <Footer>

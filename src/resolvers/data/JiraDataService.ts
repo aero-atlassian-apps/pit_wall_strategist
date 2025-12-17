@@ -78,8 +78,10 @@ export class JiraDataService {
    * Scope: read:sprint:jira-software
    */
   async getBoardActiveSprint(boardId: number): Promise<Sprint | null> {
-      // Changed to asUser() to respect user permissions
-      const response = await api.asUser().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=active`, { headers: { Accept: 'application/json' } });
+      let response = await api.asUser().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=active`, { headers: { Accept: 'application/json' } });
+      if (!response.ok) {
+          response = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=active`, { headers: { Accept: 'application/json' } });
+      }
       if (response.ok) {
           const data = await response.json();
           if (data.values?.length) return data.values[0];
@@ -98,8 +100,10 @@ export class JiraDataService {
    * Scope: read:sprint:jira-software
    */
   async getBoardFutureSprints(boardId: number): Promise<Sprint | null> {
-      // Changed to asUser() to respect user permissions
-      const response = await api.asUser().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=future`, { headers: { Accept: 'application/json' } });
+      let response = await api.asUser().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=future`, { headers: { Accept: 'application/json' } });
+      if (!response.ok) {
+          response = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=future`, { headers: { Accept: 'application/json' } });
+      }
       if (response.ok) {
           const data = await response.json();
           if (data.values?.length) return data.values[0];
@@ -118,14 +122,11 @@ export class JiraDataService {
    * Scope: read:sprint:jira-software
    */
   async getClosedSprints(boardId: number, limit: number = 5): Promise<Sprint[]> {
-      // Get last N closed sprints
-      // Note: orderBy is not supported on this endpoint, results are usually ID sorted (chronological).
-      // Changed to asUser()
-      const response = await api.asUser().requestJira(
+      const responseUser = await api.asUser().requestJira(
           route`/rest/agile/1.0/board/${boardId}/sprint?state=closed&maxResults=${limit}`,
            { headers: { Accept: 'application/json' } }
       );
-
+      let response = responseUser.ok ? responseUser : await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=closed&maxResults=${limit}`, { headers: { Accept: 'application/json' } });
       if (response.ok) {
           const data = await response.json();
           // The API returns sprints in order. We want the most recent ones.
@@ -150,8 +151,10 @@ export class JiraDataService {
       if (expand && expand.length) params.push(`expand=${encodeURIComponent(expand.join(','))}`)
       const url = route`/rest/agile/1.0/sprint/${sprintId}/issue?${params.join('&')}`
 
-      // Changed to asUser()
-      const response = await api.asUser().requestJira(url, { headers: { Accept: 'application/json' } })
+      let response = await api.asUser().requestJira(url, { headers: { Accept: 'application/json' } })
+      if (!response.ok) {
+          response = await api.asApp().requestJira(url, { headers: { Accept: 'application/json' } })
+      }
       if (response.ok) {
           const data = await response.json()
           recordFetchStatus({ endpoint: `/rest/agile/1.0/sprint/${sprintId}/issue`, ok: true, status: 200 });
@@ -168,8 +171,10 @@ export class JiraDataService {
    * Scope: read:board-scope.admin:jira-software
    */
   async getBoardConfiguration(boardId: number) {
-       // Changed to asUser()
-       const response = await api.asUser().requestJira(route`/rest/agile/1.0/board/${boardId}/configuration`, { headers: { Accept: 'application/json' } });
+       let response = await api.asUser().requestJira(route`/rest/agile/1.0/board/${boardId}/configuration`, { headers: { Accept: 'application/json' } });
+       if (!response.ok) {
+         response = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/configuration`, { headers: { Accept: 'application/json' } });
+       }
        if (response.ok) return await response.json();
        return null;
   }
@@ -180,11 +185,13 @@ export class JiraDataService {
    * Scope: read:board-scope:jira-software
    */
   async getKanbanBoardIssues(boardId: number): Promise<JiraIssue[]> {
-      // Changed to asUser()
-      const response = await api.asUser().requestJira(
+      let response = await api.asUser().requestJira(
         route`/rest/agile/1.0/board/${boardId}/issue?maxResults=100`,
        { headers: { Accept: 'application/json' } }
       );
+      if (!response.ok) {
+        response = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/issue?maxResults=100`, { headers: { Accept: 'application/json' } });
+      }
       if (response.ok) {
           const data = await response.json();
           recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/issue`, ok: true, status: 200 });
