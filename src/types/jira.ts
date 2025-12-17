@@ -1,21 +1,43 @@
-export type StatusCategoryKey = 'new' | 'indeterminate' | 'done' | string
-
-export interface JiraUser { displayName?: string; accountId?: string }
-export interface JiraPriority { name?: string }
-export interface JiraStatusCategory { key?: StatusCategoryKey }
-export interface JiraStatus { name?: string; statusCategory?: JiraStatusCategory }
-export interface JiraIssueFields {
-  summary?: string
-  assignee?: JiraUser | null
-  updated?: string
-  created?: string
-  resolutiondate?: string | null
-  priority?: JiraPriority | null
-  labels?: string[]
-  status?: JiraStatus
-  issuetype?: { name?: string }
-  project?: { key?: string }
-  customfield_10020?: any
+export interface JiraIssue {
+  key: string;
+  fields: {
+      summary: string;
+      status: {
+          name: string;
+          statusCategory: {
+              key: string; // 'new' | 'indeterminate' | 'done'
+              name: string;
+          };
+      };
+      assignee?: {
+          displayName: string;
+          accountId: string;
+      };
+      priority?: {
+          name: string;
+      };
+      issuetype?: {
+          name: string;
+      };
+      created: string;
+      updated?: string;
+      resolutiondate?: string;
+      project: {
+          key: string;
+          name: string;
+      };
+      [key: string]: any;
+  };
+  changelog?: {
+      histories: {
+          created: string;
+          items: {
+              field: string;
+              fromString: string;
+              toString: string;
+          }[];
+      }[];
+  };
 }
-export interface JiraIssue { key: string; fields: JiraIssueFields; changelog?: { histories?: Array<{ created?: string; items?: Array<{ field?: string; fromString?: string; toString?: string }> }> } }
-export interface JiraSearchResult { issues?: JiraIssue[]; total?: number }
+
+export type StatusCategoryKey = 'new' | 'indeterminate' | 'done';
