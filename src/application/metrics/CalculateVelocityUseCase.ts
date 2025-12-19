@@ -2,6 +2,7 @@ import { MetricExecutionPermissionGate } from '../../domain/permissions/MetricEx
 import { IssueGateway } from '../../domain/gateways/IssueGateway';
 import { VelocityMetric } from '../../domain/metrics/VelocityMetric';
 import { MetricResult } from '../../domain/metrics/MetricTypes';
+import { InputValidation } from '../../domain/validation/InputValidation';
 
 export class CalculateVelocityUseCase {
     constructor(
@@ -11,6 +12,16 @@ export class CalculateVelocityUseCase {
     ) {}
 
     async execute(projectKey: string): Promise<MetricResult> {
+        // 0. Input Validation
+        try {
+            InputValidation.validateProjectKey(projectKey);
+        } catch (error) {
+            return {
+                status: 'error',
+                reason: `Security Validation Failed: ${error instanceof Error ? error.message : 'Invalid Input'}`
+            };
+        }
+
         // 1. Permission Check
         const perm = await this.permissionGate.evaluate(projectKey);
         if (perm.status === 'DENIED') {
