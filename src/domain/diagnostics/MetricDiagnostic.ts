@@ -6,8 +6,8 @@ export interface DiagnosticItem {
 
 export interface MetricDiagnostics {
   permissions: {
-      user: boolean;
-      app: boolean;
+    canRead: boolean;
+    canWrite: boolean;
   };
   metrics: DiagnosticItem[];
   timestamp: string;

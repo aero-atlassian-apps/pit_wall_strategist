@@ -267,6 +267,7 @@ permissions:
 
     - read:project:jira # Required for BoardDiscoveryService to read project info
     - read:issue:jira # Required for JiraDataService to search issues (JQL) and read fields
+    - read:jql:jira # CRITICAL: Required for POST /rest/api/3/search/jql endpoint
     - write:issue:jira # Required for Rovo Actions (update, assign, transition)
     - write:comment:jira # Required for Rovo Actions (add-radio-message)
     - read:user:jira # Required for identifying assignees and user context
@@ -280,6 +281,10 @@ permissions:
 
     # === FORGE PLATFORM SCOPES ===
     - storage:app # Required for storing telemetry configuration
+
+    # === CLASSIC SCOPES (Recommended for asApp operations) ===
+    # Docs: https://developer.atlassian.com/platform/forge/manifest-reference/scopes-classic/
+    - read:jira-work # CRITICAL: Required for asApp() to search issues via /search/jql
 
   content:
     styles:

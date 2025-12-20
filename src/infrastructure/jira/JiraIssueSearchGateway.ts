@@ -6,7 +6,7 @@ import { JiraIssue } from '../../types/jira';
  * JiraIssueSearchGateway
  *
  * Infrastructure wrapper for searching Jira Issues.
- * Returns raw data or typed domain objects.
+ * Uses asApp() for read operations (hybrid strategy).
  */
 export class JiraIssueSearchGateway implements IssueGateway {
 
@@ -17,7 +17,9 @@ export class JiraIssueSearchGateway implements IssueGateway {
             maxResults: 100
         };
 
-        const response = await api.asUser().requestJira(route`/rest/api/3/search`, {
+        // Use asApp() for read operations - anyone with project access can view data
+        // IMPORTANT: Use /search/jql endpoint, not deprecated /search
+        const response = await api.asApp().requestJira(route`/rest/api/3/search/jql`, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',

@@ -53,6 +53,7 @@ function InnerApp() {
   const [locale, setLocale] = useState<string>('en')
   const [error, setError] = useState<string | null>(null)
   const [perms, setPerms] = useState<any>(null)
+  const [permissions, setPermissions] = useState<{ canRead: boolean; canWrite: boolean }>({ canRead: true, canWrite: true })
   const [projectContext, setProjectContext] = useState<any>(null)
   const [advancedAnalytics, setAdvancedAnalytics] = useState<any>(null)
   const Notice = (props: any) => <div className="notice" {...props} />
@@ -79,10 +80,10 @@ function InnerApp() {
       if (result.success) {
         setTelemetryData(result.data)
         setBoardContext({
-            boardType: result.data.boardType,
-            boardName: result.data.sprintName, // Using sprintName as display name for period
-            sprintName: result.data.sprintName,
-            healthStatus: result.data.healthStatus || result.data.sprintStatus
+          boardType: result.data.boardType,
+          boardName: result.data.sprintName, // Using sprintName as display name for period
+          sprintName: result.data.sprintName,
+          healthStatus: result.data.healthStatus || result.data.sprintStatus
         })
       } else {
         console.error('Failed to load telemetry:', result.error)
@@ -125,6 +126,14 @@ function InnerApp() {
           console.log('[App] Advanced Analytics loaded:', analyticsResult.sprintHealth?.status)
         }
       } catch (e) { console.warn('Advanced analytics not available:', e) }
+
+      // Fetch permissions for UI enablement
+      try {
+        const permResult = await invoke('getPermissions') as any
+        if (permResult) {
+          setPermissions({ canRead: permResult.canRead ?? true, canWrite: permResult.canWrite ?? false })
+        }
+      } catch { /* Permissions endpoint not available, default to canWrite=true */ }
     } catch (err: any) {
       console.error('Error fetching data:', err)
       setError(err.message || 'An unexpected error occurred')
@@ -143,20 +152,20 @@ function InnerApp() {
   async function refreshDevOps() { try { const res = await invoke('getDevOpsStatus'); if (res?.success) setDevOpsData(res) } catch { } }
   async function refreshTrends() { try { const res = await invoke('getTrendData'); if (res?.success) setTrendData(res) } catch { } }
   async function refreshTelemetry() {
-      try {
-          const res = await invoke('getTelemetryData')
-          if (res?.success) {
-              setTelemetryData(res.data)
-              // Update context lightly
-              if (res.data.healthStatus !== sprintStatus) {
-                  setBoardContext({
-                    boardType: res.data.boardType,
-                    boardName: res.data.sprintName,
-                    healthStatus: res.data.healthStatus
-                  })
-              }
-          }
-      } catch { }
+    try {
+      const res = await invoke('getTelemetryData')
+      if (res?.success) {
+        setTelemetryData(res.data)
+        // Update context lightly
+        if (res.data.healthStatus !== sprintStatus) {
+          setBoardContext({
+            boardType: res.data.boardType,
+            boardName: res.data.sprintName,
+            healthStatus: res.data.healthStatus
+          })
+        }
+      }
+    } catch { }
   }
   async function refreshTiming() { try { const res = await invoke('getTimingMetrics'); if (res?.success) setTimingMetrics(res) } catch { } }
   async function refreshIssues() { try { const res = await invoke('getSprintIssues'); if (res?.success) setIssues(res.issues) } catch { } }
@@ -268,6 +277,7 @@ function InnerApp() {
             wipCurrent: telemetryData?.wipCurrent
           }}
           alertType={selectedTicket?.isBlocked ? 'blocked' : selectedTicket?.isStalled ? 'stalled' : 'general'}
+          canWrite={permissions.canWrite}
           onClose={() => setModalOpen(false)}
           onAction={handleStrategyAction}
         />

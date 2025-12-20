@@ -38,4 +38,24 @@ resolver.define('getDiagnostics', async (req) => {
     return await useCase.execute(projectKey);
 });
 
+/**
+ * Get permission state for the current user/project.
+ * Returns canRead (always true if request succeeds) and canWrite (user can modify issues).
+ * Used by frontend to enable/disable action buttons.
+ */
+resolver.define('getPermissions', async (req) => {
+    const { projectKey } = req.payload;
+
+    const scanner = new ForgePermissionScanner();
+    const gate = new MetricExecutionPermissionGate(scanner);
+    const result = await gate.evaluate(projectKey);
+
+    return {
+        canRead: result.status === 'GRANTED',
+        canWrite: result.userCanWrite,
+        reasons: result.reasons
+    };
+});
+
 export const handler = resolver.getDefinitions();
+

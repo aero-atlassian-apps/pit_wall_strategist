@@ -21,38 +21,42 @@ const AnalysisText = styled.div`font-family:${({ theme }) => (theme as any).font
 const ActionCardsGrid = styled.div`display:grid; grid-template-columns:repeat(3, 1fr); gap:${({ theme }) => (theme as any).spacing.md}; @media (max-width: 700px) { grid-template-columns: repeat(2, 1fr); }`
 
 // Different styled cards based on relevance
-const ActionCard = styled.button<{ $relevance?: 'critical' | 'recommended' | 'available' }>`
+const ActionCard = styled.button<{ $relevance?: 'critical' | 'recommended' | 'available'; $disabled?: boolean }>`
   background:${({ theme }) => (theme as any).colors.bgCard}; 
-  border:2px solid ${({ theme, $relevance }) =>
-    $relevance === 'critical' ? (theme as any).colors.redAlert :
-      $relevance === 'recommended' ? (theme as any).colors.greenPace :
-        (theme as any).colors.border}; 
+  border:2px solid ${({ theme, $relevance, $disabled }) =>
+    $disabled ? (theme as any).colors.border + '66' :
+      $relevance === 'critical' ? (theme as any).colors.redAlert :
+        $relevance === 'recommended' ? (theme as any).colors.greenPace :
+          (theme as any).colors.border}; 
   border-radius:${({ theme }) => (theme as any).borderRadius.md}; 
   padding:${({ theme }) => (theme as any).spacing.md}; 
-  cursor:pointer; 
+  cursor:${({ $disabled }) => $disabled ? 'not-allowed' : 'pointer'}; 
   transition:all .3s ease; 
   text-align:left; 
   display:flex; 
   flex-direction:column; 
   gap:${({ theme }) => (theme as any).spacing.sm};
   position: relative;
+  opacity:${({ $disabled }) => $disabled ? 0.5 : 1};
   
-  ${({ $relevance, theme }) => $relevance === 'critical' && css`
+  ${({ $relevance, theme, $disabled }) => !$disabled && $relevance === 'critical' && css`
     box-shadow: 0 0 20px ${(theme as any).colors.redAlert}44;
     background: linear-gradient(135deg, ${(theme as any).colors.bgCard} 0%, ${(theme as any).colors.redAlert}11 100%);
   `}
   
-  ${({ $relevance, theme }) => $relevance === 'recommended' && css`
+  ${({ $relevance, theme, $disabled }) => !$disabled && $relevance === 'recommended' && css`
     box-shadow: 0 0 15px ${(theme as any).colors.greenPace}33;
     background: linear-gradient(135deg, ${(theme as any).colors.bgCard} 0%, ${(theme as any).colors.greenPace}08 100%);
   `}
   
   &:hover { 
-    border-color:${({ theme }) => (theme as any).colors.purpleSector}; 
-    box-shadow:0 0 20px ${({ theme }) => (theme as any).colors.purpleSector}44; 
-    transform: translateY(-2px) 
+    ${({ $disabled, theme }) => !$disabled && css`
+      border-color:${(theme as any).colors.purpleSector}; 
+      box-shadow:0 0 20px ${(theme as any).colors.purpleSector}44; 
+      transform: translateY(-2px);
+    `}
   } 
-  &:active { transform: translateY(0) }
+  &:active { ${({ $disabled }) => !$disabled && 'transform: translateY(0)'} }
 `
 
 const RelevanceBadge = styled.span<{ $type: 'critical' | 'recommended' }>`
@@ -86,11 +90,12 @@ interface StrategyModalProps {
   ticket: any
   boardContext?: { boardType: 'scrum' | 'kanban'; sprintActive?: boolean; sprintDaysRemaining?: number; wipLimit?: number; wipCurrent?: number }
   alertType?: 'stalled' | 'overdue' | 'blocked' | 'capacity' | 'general'
+  canWrite?: boolean  // User permission to perform write actions
   onClose?: () => void
   onAction?: (action: any, ticket: any, assignee?: string) => void
 }
 
-function StrategyModal({ ticket, boardContext, alertType = 'general', onClose, onAction }: StrategyModalProps) {
+function StrategyModal({ ticket, boardContext, alertType = 'general', canWrite = true, onClose, onAction }: StrategyModalProps) {
   const [displayedText, setDisplayedText] = useState('')
   const [users, setUsers] = useState<Array<{ accountId: string; displayName: string }>>([])
   const [selectedAssignee, setSelectedAssignee] = useState<string>('')
@@ -222,8 +227,10 @@ function StrategyModal({ ticket, boardContext, alertType = 'general', onClose, o
             {recommendedActions.map(action => (
               <ActionCard
                 key={action.id}
-                onClick={() => handleAction(action)}
+                onClick={() => canWrite && handleAction(action)}
                 $relevance={action.relevance === 'critical' || action.relevance === 'recommended' ? action.relevance : undefined}
+                $disabled={!canWrite}
+                title={!canWrite ? t('noWritePermission', locale) || "You don't have permission to perform this action" : undefined}
               >
                 {(action.relevance === 'critical' || action.relevance === 'recommended') && (
                   <RelevanceBadge $type={action.relevance}>
@@ -234,6 +241,7 @@ function StrategyModal({ ticket, boardContext, alertType = 'general', onClose, o
                 <ActionTitle>{action.name}</ActionTitle>
                 <ActionDescription>{action.description}</ActionDescription>
                 {action.reason && <ActionReason>💡 {action.reason}</ActionReason>}
+                {!canWrite && <ActionReason>🔒 {t('noWritePermission', locale) || "You don't have permission to perform this action"}</ActionReason>}
               </ActionCard>
             ))}
           </ActionCardsGrid>
