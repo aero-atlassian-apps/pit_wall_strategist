@@ -32,7 +32,9 @@ export class JiraDataService {
 
         if (!resp.ok) {
             const text = await resp.text();
-            console.log(`[Telemetry] JQL POST Error: ${resp.status} ${text}`);
+            // SECURITY: Truncate logs
+            const safeText = text.substring(0, 200);
+            console.log(`[Telemetry] JQL POST Error: ${resp.status} ${safeText}...`);
             recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asUser)', ok: false, status: resp.status });
             return { ok: false, issues: [], status: resp.status };
         }
@@ -62,7 +64,9 @@ export class JiraDataService {
 
         if (!resp.ok) {
             const text = await resp.text();
-            console.log(`[Telemetry] JQL POST (asApp) Error: ${resp.status} ${text}`);
+            // SECURITY: Truncate logs
+            const safeText = text.substring(0, 200);
+            console.log(`[Telemetry] JQL POST (asApp) Error: ${resp.status} ${safeText}...`);
             recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asApp)', ok: false, status: resp.status });
             return { ok: false, issues: [], status: resp.status };
         }
@@ -111,7 +115,7 @@ export class JiraDataService {
             if (data.values?.length) return data.values[0];
         }
         if (!response.ok) {
-            try { const txt = await response.text(); console.log(`[Telemetry] getBoardFutureSprints Error: ${response.status} ${txt}`) } catch { }
+            try { const txt = await response.text(); console.log(`[Telemetry] getBoardFutureSprints Error: ${response.status} ${txt.substring(0, 200)}...`) } catch { }
             recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=future`, ok: false, status: response.status });
         }
         else { recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=future`, ok: true, status: 200 }); }
@@ -142,7 +146,7 @@ export class JiraDataService {
             // Take the first 'limit' (most recently closed sprints)
             return sprints.slice(0, limit);
         }
-        try { const txt = await response.text(); console.log(`[Telemetry] getClosedSprints Error: ${response.status} ${txt}`) } catch { }
+        try { const txt = await response.text(); console.log(`[Telemetry] getClosedSprints Error: ${response.status} ${txt.substring(0, 200)}...`) } catch { }
         recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=closed`, ok: false, status: response.status });
         return [];
     }
@@ -167,7 +171,7 @@ export class JiraDataService {
             recordFetchStatus({ endpoint: `/rest/agile/1.0/sprint/${sprintId}/issue`, ok: true, status: 200 });
             return data.issues || []
         }
-        try { const txt = await response.text(); console.log(`[Telemetry] getSprintIssues Error: ${response.status} ${txt}`) } catch { }
+        try { const txt = await response.text(); console.log(`[Telemetry] getSprintIssues Error: ${response.status} ${txt.substring(0, 200)}...`) } catch { }
         recordFetchStatus({ endpoint: `/rest/agile/1.0/sprint/${sprintId}/issue`, ok: false, status: response.status });
         return []
     }

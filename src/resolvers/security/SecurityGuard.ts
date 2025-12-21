@@ -50,7 +50,9 @@ export class SecurityGuard {
       appBrowse = resp.ok;
       if (!resp.ok) {
         const body = await resp.text();
-        console.warn(`[Security] App Browse Denied: ${resp.status} - ${body}`);
+        // SECURITY: Truncate body to prevent huge log leaks, but keep enough for debugging
+        const safeBody = body.substring(0, 200);
+        console.warn(`[Security] App Browse Denied: ${resp.status} - ${safeBody}...`);
         messages.push(`[Security] App Browse Denied: ${resp.status}`);
       }
     } catch (e: any) {
