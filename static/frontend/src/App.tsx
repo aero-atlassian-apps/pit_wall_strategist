@@ -45,8 +45,8 @@ const Backdrop = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(2px);
+  background: var(--bg-glass);
+  backdrop-filter: blur(4px);
   z-index: 999;
 `
 
@@ -244,9 +244,10 @@ function App() {
 }
 
 function LoadingScreen() {
+  const locale = (window as any).__PWS_LOCALE || 'en';
   return (
     <LoadingContainer>
-      <LoadingText>{t('initializingTelemetry', (window as any).__PWS_LOCALE || 'en')}</LoadingText>
+      <LoadingText>{t('initializingTelemetry', locale)}</LoadingText>
       <LoadingBar><LoadingProgress /></LoadingBar>
     </LoadingContainer>
   )

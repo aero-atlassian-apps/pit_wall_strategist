@@ -64,9 +64,9 @@ function TourOverlay() {
           <Tooltip>
             <WelcomeTitle>{currentStepData.title}</WelcomeTitle>
             <TooltipContent>{currentStepData.content}</TooltipContent>
-            <TooltipFooter>
-              <Button onClick={skipTour}>{t('skipToGrid', (window as any).__PWS_LOCALE || 'en')}</Button>
-              <Button $primary onClick={nextStep}>{t('startBriefing', (window as any).__PWS_LOCALE || 'en')} →</Button>
+            <TooltipFooter style={{ gap: '12px', justifyContent: 'center' }}>
+              <Button onClick={skipTour} style={{ minWidth: '120px' }}>{t('skipToGrid', (window as any).__PWS_LOCALE || 'en').replace(/([A-Z])/g, ' $1').trim()}</Button>
+              <Button $primary onClick={nextStep} style={{ minWidth: '140px' }}>{t('startBriefing', (window as any).__PWS_LOCALE || 'en').replace(/([A-Z])/g, ' $1').trim()} →</Button>
             </TooltipFooter>
           </Tooltip>
         </CenterModal>

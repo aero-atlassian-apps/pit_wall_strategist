@@ -70,8 +70,10 @@
   --status-critical: var(--color-red-500);
   --status-info: var(--color-blue-500);
   --color-success: var(--color-green-500);
+  --color-success-hover: var(--color-green-600);
   --color-warning: var(--color-yellow-500);
   --color-danger: var(--color-red-500);
+  --bg-danger-subtle: rgba(244, 42, 64, 0.1);
   --color-info: var(--color-blue-500);
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -133,8 +135,10 @@
   --status-warning: var(--color-yellow-400);
   --status-critical: var(--color-red-500);
   --color-success: var(--color-green-400);
+  --color-success-hover: var(--color-green-500);
   --color-warning: var(--color-yellow-400);
   --color-danger: var(--color-red-500);
+  --bg-danger-subtle: rgba(244, 42, 64, 0.15);
 
   --circuit-asphalt: var(--color-slate-800);
 
