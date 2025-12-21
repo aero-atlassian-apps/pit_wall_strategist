@@ -74,6 +74,30 @@ function analyzeTeamOrders(issue: IssueContext): RelevanceResult {
     return { relevance: 'available' };
 }
 
+function analyzeRedFlag(issue: IssueContext): RelevanceResult {
+    const { isStalled, isBlocked, statusCategory, daysInStatus, priority } = issue;
+
+    // Critical: Stalled > 10 days is effectively blocked (Tightened from 5)
+    if (isStalled && daysInStatus > 10 && !isBlocked) {
+        return { relevance: 'critical', reason: 'Stalled > 10 days - Force visual blocker' };
+    }
+    // High Priority Stalled -> Critical
+    if (isStalled && !isBlocked && (priority === 'High' || priority === 'Highest')) {
+        return { relevance: 'critical', reason: 'High Priority Stalled - Flag impediment' };
+    }
+
+    if (isBlocked || statusCategory === 'done') {
+        return { relevance: 'hidden' };
+    }
+
+    // Recommended for normal stalled
+    if (isStalled) {
+        return { relevance: 'recommended', reason: 'Stalled - consider flagging' };
+    }
+
+    return { relevance: 'available' };
+}
+
 function analyzeRetire(issue: IssueContext, board: BoardContext): RelevanceResult {
     const { sprintActive, sprintDaysRemaining, boardType, wipLimit, wipCurrent } = board;
     const { priority, statusCategory, issueType, daysInStatus } = issue;
@@ -82,9 +106,10 @@ function analyzeRetire(issue: IssueContext, board: BoardContext): RelevanceResul
     if (sprintActive && (sprintDaysRemaining || 99) <= 3 && priority !== 'High' && statusCategory !== 'done') {
         return { relevance: 'critical', reason: 'Sprint ending - preserve velocity' };
     }
-    // New: If stuck > 10 days and Low priority -> Suggest retire
-    if (daysInStatus > 10 && priority === 'Low') {
-        return { relevance: 'critical', reason: 'Stuck > 10 days - clear the garage' };
+    // NEW: Garbage Collection Logic
+    // If stuck > 14 days and Low/Medium priority -> Critical Suggestion to Retire
+    if (daysInStatus > 14 && priority !== 'High' && priority !== 'Highest') {
+        return { relevance: 'critical', reason: `Stagnant ${daysInStatus} days - clear the garage` };
     }
 
     // Recommended
@@ -97,48 +122,6 @@ function analyzeRetire(issue: IssueContext, board: BoardContext): RelevanceResul
         return { relevance: 'hidden' };
     }
     if (issueType.toLowerCase() === 'subtask') {
-        return { relevance: 'hidden' };
-    }
-    return { relevance: 'available' };
-}
-
-function analyzeBlueFlag(issue: IssueContext): RelevanceResult {
-    const { isBlocked, isStalled, linkedIssues, priority } = issue;
-    if ((isBlocked || isStalled) && (linkedIssues || 0) > 0) {
-        return { relevance: 'critical', reason: 'Other issues depend on this' };
-    }
-    if (priority === 'High' || priority === 'Highest') {
-        return { relevance: 'hidden' };
-    }
-    if (isStalled) {
-        return { relevance: 'recommended', reason: 'Stalled - may need priority boost' };
-    }
-    return { relevance: 'available' };
-}
-
-function analyzePushLimit(issue: IssueContext): RelevanceResult {
-    const { statusCategory, daysInStatus } = issue;
-    if (statusCategory === 'indeterminate' && daysInStatus > 3) {
-        return { relevance: 'recommended', reason: 'Push to next stage' };
-    }
-    if (statusCategory === 'done') {
-        return { relevance: 'hidden' };
-    }
-    return { relevance: 'available' };
-}
-
-function analyzeRedFlag(issue: IssueContext): RelevanceResult {
-    const { isStalled, isBlocked, statusCategory, daysInStatus } = issue;
-
-    // Critical: Stalled > 5 days is effectively blocked
-    if (isStalled && daysInStatus > 5 && !isBlocked) {
-        return { relevance: 'critical', reason: 'Stalled > 5 days - Force visual blocker' };
-    }
-    if (isStalled && !isBlocked) {
-        return { relevance: 'critical', reason: 'Flag impediment to trigger resolution' };
-    }
-
-    if (isBlocked || statusCategory === 'done') {
         return { relevance: 'hidden' };
     }
     return { relevance: 'available' };

@@ -18,7 +18,8 @@ const pulseRed = keyframes`
 const RadioFeed = styled.div`
   display: flex;
   flex-direction: column;
-  /* height: 100%; removed to fix flex overflow */
+  height: 100%;
+  min-height: 0; /* CRITICAL for nested flex scrolling */
   gap: 12px;
   overflow-y: auto;
   padding-right: 4px;

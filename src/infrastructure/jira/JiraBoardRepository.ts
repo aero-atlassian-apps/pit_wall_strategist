@@ -95,8 +95,23 @@ export class JiraBoardRepository {
             const storyPointsFields = customFields.storyPoints || [];
             const fieldsToFetch = ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate', ...storyPointsFields];
 
-            const historyRes = await issueSearchService.search(historyJql, fieldsToFetch, false);
+            // ENABLE CHANGELOG (true) for accurate Cycle Time analysis
+            const historyRes = await issueSearchService.search(historyJql, fieldsToFetch, true);
             historicalIssues = historyRes.ok ? historyRes.issues : [];
+        } else {
+            // FALLBACK: If no closed sprints (new project), fetch last 30 days of done items
+            // This ensures "Flow Rate" and "Throughput" still work based on raw JQL
+            if (projectKey) {
+                const historyJql = `project = "${projectKey}" AND statusCategory = Done AND updated >= -30d`;
+
+                const customFields = await fieldDiscoveryService.discoverCustomFields();
+                const storyPointsFields = customFields.storyPoints || [];
+                const fieldsToFetch = ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate', ...storyPointsFields];
+
+                const historyRes = await issueSearchService.search(historyJql, fieldsToFetch, true);
+                historicalIssues = historyRes.ok ? historyRes.issues : [];
+                console.log(`[Telemetry] Scrum Fallback: Fetched ${historicalIssues.length} historical issues via JQL (No closed sprints found).`);
+            }
         }
 
         if (!activeSprint) {

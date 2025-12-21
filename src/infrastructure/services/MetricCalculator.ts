@@ -332,7 +332,7 @@ export class MetricCalculator {
 
         return inProgressIssues.length > 0
             ? Math.round((active / inProgressIssues.length) * 100)
-            : 100;
+            : 0;
     }
 
     private calculateWipConsistency(issues: JiraIssue[], currentWip: number, context: InternalContext): { consistency: number, explanation?: string } {
