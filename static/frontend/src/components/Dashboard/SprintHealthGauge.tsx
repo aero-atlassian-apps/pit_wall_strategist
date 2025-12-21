@@ -10,36 +10,15 @@
 import React from 'react'
 import { t } from '../../i18n'
 import styled, { keyframes } from 'styled-components'
+import { Panel } from '../Common/Panel'
 
 const pulse = keyframes`
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 `
 
-const Container = styled.div`
-  background: ${({ theme }) => (theme as any).colors.bgCard};
-  border-radius: ${({ theme }) => (theme as any).borderRadius.md};
-  padding: ${({ theme }) => (theme as any).spacing.md};
-  border: 1px solid ${({ theme }) => (theme as any).colors.border};
-`
-
-const Header = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: ${({ theme }) => (theme as any).spacing.md};
-`
-
-const Title = styled.div`
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: ${({ theme }) => (theme as any).colors.textMuted};
-`
-
 const FlagBadge = styled.span<{ $status: 'GREEN_FLAG' | 'YELLOW_FLAG' | 'RED_FLAG' }>`
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
+  font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
   padding: 2px 8px;
@@ -47,21 +26,21 @@ const FlagBadge = styled.span<{ $status: 'GREEN_FLAG' | 'YELLOW_FLAG' | 'RED_FLA
   text-transform: uppercase;
   animation: ${pulse} 2s ease-in-out infinite;
   
-  ${({ $status, theme }) => {
+  ${({ $status }) => {
         if ($status === 'GREEN_FLAG') {
             return `
-        background: ${(theme as any).colors.greenPace};
-        color: ${(theme as any).colors.bgMain};
+        background: var(--color-success);
+        color: var(--bg-main);
       `
         } else if ($status === 'YELLOW_FLAG') {
             return `
-        background: ${(theme as any).colors.yellowFlag};
-        color: ${(theme as any).colors.bgMain};
+        background: var(--color-warning);
+        color: var(--bg-main);
       `
         } else {
             return `
-        background: ${(theme as any).colors.redAlert};
-        color: white;
+        background: var(--color-danger);
+        color: #FFFFFF;
       `
         }
     }}
@@ -70,10 +49,10 @@ const FlagBadge = styled.span<{ $status: 'GREEN_FLAG' | 'YELLOW_FLAG' | 'RED_FLA
 const GaugeContainer = styled.div`
   position: relative;
   height: 16px;
-  background: ${({ theme }) => (theme as any).colors.bgMain};
+  background: var(--bg-main);
   border-radius: 8px;
   overflow: hidden;
-  margin-bottom: ${({ theme }) => (theme as any).spacing.sm};
+  margin-bottom: 12px;
 `
 
 const GaugeFill = styled.div<{ $percent: number; $status: string }>`
@@ -82,13 +61,13 @@ const GaugeFill = styled.div<{ $percent: number; $status: string }>`
   border-radius: 8px;
   transition: width 1s ease-out;
   
-  ${({ $status, theme }) => {
+  ${({ $status }) => {
         if ($status === 'GREEN_FLAG') {
-            return `background: linear-gradient(90deg, ${(theme as any).colors.greenPace}88, ${(theme as any).colors.greenPace});`
+            return `background: linear-gradient(90deg, var(--color-success-dim), var(--color-success));`
         } else if ($status === 'YELLOW_FLAG') {
-            return `background: linear-gradient(90deg, ${(theme as any).colors.yellowFlag}88, ${(theme as any).colors.yellowFlag});`
+            return `background: linear-gradient(90deg, var(--color-warning-dim), var(--color-warning));`
         } else {
-            return `background: linear-gradient(90deg, ${(theme as any).colors.redAlert}88, ${(theme as any).colors.redAlert});`
+            return `background: linear-gradient(90deg, var(--color-danger-dim), var(--color-danger));`
         }
     }}
 `
@@ -98,44 +77,44 @@ const ScoreText = styled.div`
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
-  color: ${({ theme }) => (theme as any).colors.textPrimary};
+  color: var(--text-primary);
   text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 `
 
 const Message = styled.div`
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
+  font-family: var(--font-mono);
   font-size: 12px;
-  color: ${({ theme }) => (theme as any).colors.textPrimary};
-  margin-bottom: ${({ theme }) => (theme as any).spacing.xs};
+  color: var(--text-primary);
+  margin-bottom: 8px;
 `
 
 const Recommendation = styled.div`
-  font-family: ${({ theme }) => (theme as any).fonts.ui};
+  font-family: var(--font-ui);
   font-size: 11px;
-  color: ${({ theme }) => (theme as any).colors.textMuted};
+  color: var(--text-secondary);
   font-style: italic;
 `
 
 const FactorsRow = styled.div`
   display: flex;
-  gap: ${({ theme }) => (theme as any).spacing.sm};
-  margin-top: ${({ theme }) => (theme as any).spacing.sm};
+  gap: 8px;
+  margin-top: 12px;
   flex-wrap: wrap;
 `
 
 const Factor = styled.div<{ $value: number }>`
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
+  font-family: var(--font-mono);
   font-size: 9px;
   padding: 2px 6px;
   border-radius: 4px;
-  background: ${({ theme }) => (theme as any).colors.bgMain};
-  color: ${({ $value, theme }) =>
-        $value >= 0.8 ? (theme as any).colors.greenPace :
-            $value >= 0.5 ? (theme as any).colors.yellowFlag :
-                (theme as any).colors.redAlert
+  background: var(--bg-main);
+  color: ${({ $value }) =>
+        $value >= 0.8 ? 'var(--color-success)' :
+            $value >= 0.5 ? 'var(--color-warning)' :
+                'var(--color-danger)'
     };
 `
 
@@ -157,39 +136,36 @@ interface SprintHealthGaugeProps {
 
 export function SprintHealthGauge({ sprintHealth, loading }: SprintHealthGaugeProps) {
     const locale = (window as any).__PWS_LOCALE || 'en'
-    // Handle disabled/unavailable state
+
+    // Header for Panel
+    const GaugeStatus = () => {
+        if (!sprintHealth) return null;
+        const flagLabel = sprintHealth.status.replace('_', ' ')
+        return <FlagBadge $status={sprintHealth.status}>{flagLabel}</FlagBadge>
+    }
+
     if (!sprintHealth && !loading) {
-         return (
-             <Container>
-                 <Header>
-                     <Title>🏥 {t('sprintHealth', locale)}</Title>
-                 </Header>
-                 <Message style={{ color: '#64748B' }}>{t('metricsDisabled', locale) || 'Metrics Unavailable'}</Message>
-             </Container>
-         )
+        return (
+            <Panel title={`🏥 ${t('sprintHealth', locale)}`}>
+                <Message style={{ color: 'var(--text-tertiary)', padding: 16 }}>
+                    {t('metricsDisabled', locale) || 'Metrics Unavailable'}
+                </Message>
+            </Panel>
+        )
     }
 
     if (loading || !sprintHealth) {
         return (
-            <Container>
-                <Header>
-                    <Title>🏥 {t('sprintHealth', locale)}</Title>
-                </Header>
-                <Message style={{ color: '#64748B' }}>{t('calculatingPrediction', locale)}</Message>
-            </Container>
+            <Panel title={`🏥 ${t('sprintHealth', locale)}`} loading={true}>
+                <div style={{ height: 100 }} />
+            </Panel>
         )
     }
 
     const { score, status, message, recommendation, factors } = sprintHealth
-    const flagLabel = status.replace('_', ' ')
 
     return (
-        <Container>
-            <Header>
-                <Title>🏥 {t('sprintHealthPredictor', locale)}</Title>
-                <FlagBadge $status={status}>{flagLabel}</FlagBadge>
-            </Header>
-
+        <Panel title={`🏥 ${t('sprintHealthPredictor', locale)}`} rightAction={<GaugeStatus />}>
             <GaugeContainer>
                 <GaugeFill $percent={score} $status={status} />
                 <ScoreText>{score}%</ScoreText>
@@ -212,7 +188,7 @@ export function SprintHealthGauge({ sprintHealth, loading }: SprintHealthGaugePr
                     📦 {t('scope', locale)}: {Math.round(factors.scopeFactor * 100)}%
                 </Factor>
             </FactorsRow>
-        </Container>
+        </Panel>
     )
 }
 

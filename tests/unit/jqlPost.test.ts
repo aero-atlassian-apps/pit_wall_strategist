@@ -24,8 +24,9 @@ describe('searchJqlUserOnly uses POST /rest/api/3/search', async () => {
     }
     vi.resetModules()
     vi.doMock('@forge/api', () => ({ default: api as any, route }))
-    const mod = await import('../../src/resolvers/telemetryUtils')
-    const res = await (mod as any).searchJqlUserOnly('project = "TO"', ['summary'], 10)
+    const { JiraDataService } = await import('../../src/infrastructure/jira/JiraDataService')
+    const dataService = new JiraDataService()
+    const res = await (dataService as any).searchJqlUserOnly('project = "TO"', ['summary'], 10)
     expect(captured.path).toBe('/rest/api/3/search/jql')
     expect(captured.options?.method).toBe('POST')
     const body = JSON.parse(captured.options?.body || '{}')

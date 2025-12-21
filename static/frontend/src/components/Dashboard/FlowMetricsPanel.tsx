@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { invoke } from '@forge/bridge'
 import F1Card from '../Common/F1Card'
-import { t } from '../../i18n'
+import { t, tPop } from '../../i18n'
 
 const fadeIn = keyframes`from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); }`
 
@@ -214,10 +214,13 @@ interface FlowMetricsData {
         total: number
     }
     velocity: { completed: number; period: string; trend: 'up' | 'down' | 'stable'; changePercent: number }
-    flowTime: { avgHours: number; medianHours: number; p85Hours: number }
+    flowTime: { avgHours: number; medianHours: number; p85Hours: number; minHours: number; maxHours: number }
     flowLoad: { total: number; limit: number; loadPercent: number }
     detectedTypes: string[]
-    f1Theme: Record<string, { name: string; emoji: string; color: string }>
+    typeMapping: Record<string, string>
+    f1Theme: Record<string, { color: string }>
+    boardType?: string
+    mode?: string
 }
 
 interface FlowMetricsPanelProps {
@@ -232,7 +235,7 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
     useEffect(() => {
         async function fetchData() {
             try {
-                const result = await invoke<any>('getFlowMetrics')
+                const result = await invoke('getFlowMetrics')
                 if (result.success) {
                     setData(result)
                 } else {
@@ -267,38 +270,54 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
         )
     }
 
-    const theme = data.f1Theme
+    const mode = data.mode || 'scrum'
     const loadStatus = data.flowLoad.loadPercent > 100 ? 'danger' :
         data.flowLoad.loadPercent > 80 ? 'warning' : 'good'
 
+    const getTheme = (key: string) => {
+        const theme = data.f1Theme?.[key] || { color: '#888' };
+        return {
+            name: t(`flow_${key}`, locale),
+            color: theme.color
+        }
+    }
+
+    // Helper to get all themes for distribution
+    const themes = {
+        features: getTheme('features'),
+        defects: getTheme('defects'),
+        risks: getTheme('risks'),
+        debt: getTheme('debt')
+    }
+
     return (
         <Container>
-            <F1Card title={`🏁 ${t('raceStrategyAnalysis', locale)}`} badge={t('safeFlow', locale)}>
+            <F1Card title={`🏁 ${tPop('telemetryTitle', mode, locale)}`} badge={tPop('workContainer', mode, locale)}>
                 <MetricsGrid>
                     {/* Strategy Mix (Distribution) */}
                     <MetricSection>
                         <SectionTitle>
-                            {theme.features.emoji} {t('strategyMix', locale)}
+                            📊 {t('strategyMix', locale)}
                         </SectionTitle>
                         <DistributionBars>
                             <DistributionRow>
-                                <DistributionLabel>{theme.features.name}</DistributionLabel>
-                                <DistributionBar $percentage={data.distribution.features.percentage} $color={theme.features.color} />
+                                <DistributionLabel>{themes.features.name}</DistributionLabel>
+                                <DistributionBar $percentage={data.distribution.features.percentage} $color={themes.features.color} />
                                 <DistributionValue>{data.distribution.features.percentage}%</DistributionValue>
                             </DistributionRow>
                             <DistributionRow>
-                                <DistributionLabel>{theme.defects.name}</DistributionLabel>
-                                <DistributionBar $percentage={data.distribution.defects.percentage} $color={theme.defects.color} />
+                                <DistributionLabel>{themes.defects.name}</DistributionLabel>
+                                <DistributionBar $percentage={data.distribution.defects.percentage} $color={themes.defects.color} />
                                 <DistributionValue>{data.distribution.defects.percentage}%</DistributionValue>
                             </DistributionRow>
                             <DistributionRow>
-                                <DistributionLabel>{theme.risks.name}</DistributionLabel>
-                                <DistributionBar $percentage={data.distribution.risks.percentage} $color={theme.risks.color} />
+                                <DistributionLabel>{themes.risks.name}</DistributionLabel>
+                                <DistributionBar $percentage={data.distribution.risks.percentage} $color={themes.risks.color} />
                                 <DistributionValue>{data.distribution.risks.percentage}%</DistributionValue>
                             </DistributionRow>
                             <DistributionRow>
-                                <DistributionLabel>{theme.debt.name}</DistributionLabel>
-                                <DistributionBar $percentage={data.distribution.debt.percentage} $color={theme.debt.color} />
+                                <DistributionLabel>{themes.debt.name}</DistributionLabel>
+                                <DistributionBar $percentage={data.distribution.debt.percentage} $color={themes.debt.color} />
                                 <DistributionValue>{data.distribution.debt.percentage}%</DistributionValue>
                             </DistributionRow>
                         </DistributionBars>
@@ -307,7 +326,7 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
                     {/* Laps Completed (Velocity) */}
                     <MetricSection>
                         <SectionTitle>
-                            🏎️ {t('lapsCompleted', locale)}
+                            🏎️ {tPop('progressMetric', mode, locale)}
                         </SectionTitle>
                         <VelocityDisplay>
                             <VelocityValue>{data.velocity.completed}</VelocityValue>
@@ -323,7 +342,7 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
                     {/* Sector Time (Flow Time) */}
                     <MetricSection>
                         <SectionTitle>
-                            ⏱️ {t('sectorTimeLeadTime', locale)}
+                            ⏱️ {tPop('timeMetric', mode, locale)}
                         </SectionTitle>
                         <TimeStats>
                             <TimeStat>
@@ -344,7 +363,7 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
                     {/* Fuel Load (Flow Load) */}
                     <MetricSection>
                         <SectionTitle>
-                            ⛽ {t('fuelLoadWip', locale)}
+                            ⛽ {tPop('load', mode, locale)}
                         </SectionTitle>
                         <LoadGauge>
                             <LoadBar $percent={data.flowLoad.loadPercent} $status={loadStatus} />
@@ -362,11 +381,15 @@ export default function FlowMetricsPanel({ locale = 'en' }: FlowMetricsPanelProp
                         🔍 {t('autoDetectedIssueTypes', locale)}
                     </SectionTitle>
                     <div>
-                        {data.detectedTypes.map(type => (
-                            <TypeBadge key={type} $color={theme.features.color}>
-                                {type}
-                            </TypeBadge>
-                        ))}
+                        {data.detectedTypes.map(type => {
+                            const category = data.typeMapping[type] || 'other';
+                            const t = getTheme(category);
+                            return (
+                                <TypeBadge key={type} $color={t.color}>
+                                    {type}
+                                </TypeBadge>
+                            )
+                        })}
                     </div>
                 </DetectedTypes>
             </F1Card>

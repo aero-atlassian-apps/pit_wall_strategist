@@ -5,44 +5,52 @@ import { handler } from '../../src/resolvers/index'
 // Mock dependencies
 vi.mock('@forge/api', () => ({
     storage: { get: vi.fn(), set: vi.fn() },
-    default: { asApp: vi.fn(), asUser: vi.fn(), route: (strs: any, ...vals: any) => strs.join('') }
+    default: { asApp: vi.fn(), asUser: vi.fn(), route: (strs: any, ...vals: any) => strs.join('') },
+    route: (strs: any, ...vals: any) => strs.join('')
 }))
 
-vi.mock('../../src/resolvers/telemetryUtils', () => ({
-    // Mock the alias directly if possible or the underlying function
-    fetchBoardData: vi.fn().mockResolvedValue({
-        issues: [
-            { key: 'TEST-1', status: 'To Do', statusCategory: 'new' },
-            { key: 'TEST-2', status: 'In Progress', statusCategory: 'indeterminate' },
-            { key: 'TEST-3', status: 'Done', statusCategory: 'done' },
-            { key: 'TEST-4', status: 'Weird Status', statusCategory: 'new' }
-        ],
-        sprint: { name: 'Test Sprint' },
-        boardType: 'scrum',
-        boardId: 1
-    }),
-    fetchSprintData: vi.fn().mockResolvedValue({
-        issues: [
-            { key: 'TEST-1', status: 'To Do', statusCategory: 'new' },
-            { key: 'TEST-2', status: 'In Progress', statusCategory: 'indeterminate' },
-            { key: 'TEST-3', status: 'Done', statusCategory: 'done' },
-            { key: 'TEST-4', status: 'Weird Status', statusCategory: 'new' }
-        ],
-        sprint: { name: 'Test Sprint' },
-        boardType: 'scrum',
-        boardId: 1
-    }),
-    calculateTelemetry: vi.fn(),
-    detectStalledTickets: vi.fn().mockReturnValue([]),
-    categorizeIssues: vi.fn().mockImplementation((issues) => issues),
-    discoverCustomFields: vi.fn(),
-    detectBoardType: vi.fn().mockResolvedValue({ boardId: 1, type: 'scrum' }),
-    DEFAULT_CONFIG: {},
-    getFieldCacheSnapshot: vi.fn()
+// Mock the underlying infrastructure modules instead of the re-export wrapper
+vi.mock('../../src/infrastructure/jira/JiraBoardRepository', () => ({
+    JiraBoardRepository: vi.fn().mockImplementation(() => ({
+        getBoardData: vi.fn().mockResolvedValue({
+            issues: [
+                { key: 'TEST-1', fields: { status: { name: 'To Do', statusCategory: { key: 'new' } }, summary: 'Test 1', assignee: null, updated: new Date().toISOString(), priority: { name: 'Medium' } } },
+                { key: 'TEST-2', fields: { status: { name: 'In Progress', statusCategory: { key: 'indeterminate' } }, summary: 'Test 2', assignee: null, updated: new Date().toISOString(), priority: { name: 'Medium' } } },
+                { key: 'TEST-3', fields: { status: { name: 'Done', statusCategory: { key: 'done' } }, summary: 'Test 3', assignee: null, updated: new Date().toISOString(), priority: { name: 'Medium' } } },
+                { key: 'TEST-4', fields: { status: { name: 'Weird Status', statusCategory: { key: 'new' } }, summary: 'Test 4', assignee: null, updated: new Date().toISOString(), priority: { name: 'Medium' } } }
+            ],
+            sprint: { name: 'Test Sprint' },
+            boardType: 'scrum',
+            boardId: 1
+        }),
+        detectBoardType: vi.fn().mockResolvedValue({ boardId: 1, boardType: 'scrum', boardName: 'Test Board' })
+    }))
 }))
 
-vi.mock('../../src/resolvers/statusMap', () => ({
-    getProjectStatusMap: vi.fn().mockResolvedValue({})
+vi.mock('../../src/infrastructure/services/StatusMapService', () => ({
+    StatusMapService: vi.fn().mockImplementation(() => ({
+        getProjectStatusMap: vi.fn().mockResolvedValue({ byId: {}, byName: {}, byIssueType: {}, fetchedAt: Date.now() })
+    }))
+}))
+
+vi.mock('../../src/infrastructure/services/LegacyTelemetryAdapter', () => ({
+    LegacyTelemetryAdapter: {
+        calculateTelemetry: vi.fn().mockResolvedValue({}),
+        detectStalledTickets: vi.fn().mockReturnValue([]),
+        categorizeIssues: vi.fn().mockImplementation((issues: any[]) => issues.map((i: any) => ({
+            key: i.key,
+            summary: i.fields?.summary || '',
+            status: i.fields?.status?.name,
+            statusCategory: i.fields?.status?.statusCategory?.key,
+            assignee: i.fields?.assignee?.displayName || 'Unassigned',
+            updated: i.fields?.updated,
+            priority: i.fields?.priority?.name || 'Medium',
+            isStalled: false
+        }))),
+        discoverCustomFields: vi.fn().mockResolvedValue({ storyPoints: null }),
+        getFieldCacheSnapshot: vi.fn().mockReturnValue({})
+    },
+    DEFAULT_CONFIG: { wipLimit: 8, assigneeCapacity: 3, stalledThresholdHours: 24 }
 }))
 
 vi.mock('../../src/resolvers/timingMetrics', () => ({

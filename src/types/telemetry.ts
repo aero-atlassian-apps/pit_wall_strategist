@@ -13,6 +13,26 @@ export interface TelemetryConfig {
 
 export type BoardType = 'scrum' | 'kanban' | 'business'
 
+/**
+ * Population Mode - Determines terminology and metrics shown to users
+ * - 'scrum': Software teams with sprint-based delivery (Sprint, Velocity, Commitment)
+ * - 'flow': Software teams with continuous delivery (Cycle Time, Throughput, WIP)
+ * - 'process': Business teams (Marketing, HR, Finance) - task/queue management
+ */
+export type PopulationMode = 'scrum' | 'flow' | 'process'
+
+/**
+ * Derive population mode from board type
+ * This determines which terminology set to use in the UI
+ */
+export function getPopulationMode(boardType: BoardType): PopulationMode {
+  switch (boardType) {
+    case 'scrum': return 'scrum'
+    case 'kanban': return 'flow'
+    case 'business': return 'process'
+  }
+}
+
 export interface Sprint {
   id: number
   name: string

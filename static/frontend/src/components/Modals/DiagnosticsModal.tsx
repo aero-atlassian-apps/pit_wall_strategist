@@ -13,7 +13,6 @@ export default function DiagnosticsModal({ open, onClose, health }: Props) {
   const locale = (window as any).__PWS_LOCALE || 'en'
   const [diag, setDiag] = useState<any>(null)
   const [details, setDetails] = useState<any>(null)
-  const [probe, setProbe] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => { if (open) refresh() }, [open])
@@ -23,7 +22,6 @@ export default function DiagnosticsModal({ open, onClose, health }: Props) {
     try {
       const res = await invoke('getPermissionsDiagnostics'); if (res?.success) setDiag(res.permissions)
       const d = await invoke('getDiagnosticsDetails'); if (d?.success) setDetails(d)
-      const p = await invoke('getAccessProbe'); if (p?.success) setProbe(p.results)
     } catch { } finally { setLoading(false) }
   }
 
@@ -50,6 +48,14 @@ export default function DiagnosticsModal({ open, onClose, health }: Props) {
             <KV><K>{t('board', locale)}</K><V>{health?.boardInfo?.boardName || health?.boardInfo?.error || '—'}</V></KV>
             <KV><K>{t('type', locale)}</K><V>{health?.boardInfo?.type || '—'}</V></KV>
             <KV><K>{t('fields', locale)}</K><V>{`SP:${health?.fields?.storyPoints || 'unknown'} Sprint:${health?.fields?.sprint || 'unknown'} Epic:${health?.fields?.epicLink || 'n/a'}`}</V></KV>
+            {/* Moved from Deep Inspection */}
+            <KV><K>{t('boardFilter', locale)}</K><V>{details?.filter?.id || 'n/a'}</V></KV>
+            <KV><K>{t('filterJql', locale)}</K><V className="code">{details?.filter?.jql || 'n/a'}</V></KV>
+            <KV><K>{t('sprintId', locale)}</K><V>{details?.sprint?.id ?? 'n/a'}</V></KV>
+            {/* Show velocity window info */}
+            {details?.velocityWindow && (
+              <KV><K>{t('window', locale)}</K><V>{details.velocityWindow}</V></KV>
+            )}
           </Section>
 
           <Divider />
@@ -66,21 +72,6 @@ export default function DiagnosticsModal({ open, onClose, health }: Props) {
               <KV><K>{t('status', locale)}</K><V>{loading ? t('loading', locale) : t('noData', locale)}</V></KV>
             )}
           </Section>
-
-          <Divider />
-
-          <Section>
-            <SectionTitle>{t('deepInspection', locale)}</SectionTitle>
-            <KV><K>{t('cspNonce', locale)}</K><V>{getCspNonce() ? t('present', locale) : t('missing', locale)}</V></KV>
-            <KV><K>{t('fieldCache', locale)}</K><V>{formatFields(details?.fields)}</V></KV>
-            <KV><K>{t('boardFilter', locale)}</K><V>{details?.filter?.id || 'n/a'}</V></KV>
-            <KV><K>{t('filterJql', locale)}</K><V className="code">{details?.filter?.jql || 'n/a'}</V></KV>
-            <KV><K>{t('sprintId', locale)}</K><V>{details?.sprint?.id ?? 'n/a'}</V></KV>
-            <KV><K>{t('forgeScopes', locale)}</K><V className="code">{Array.isArray(details?.scopes) ? `${details.scopes.length} ${t('scopes', locale)}` : 'n/a'}</V></KV>
-            {Array.isArray(probe) && probe.length > 0 && probe.slice(-6).map((r: any, i: number) => (
-              <KV key={i}><K>{r.endpoint}</K><V $good={r.ok}>{`${r.ok ? 'OK' : 'ERR'} ${r.status ?? ''}`}</V></KV>
-            ))}
-          </Section>
         </Body>
         <Footer>
           <Button type="button" onClick={refresh} $variant="secondary" disabled={loading}>{loading ? t('refreshing', locale) : t('runDiagnostics', locale)}</Button>
@@ -90,22 +81,7 @@ export default function DiagnosticsModal({ open, onClose, health }: Props) {
   )
 }
 
-function getCspNonce(): string | undefined {
-  const meta = document.querySelector('meta[name="csp-nonce"]') as HTMLMetaElement | null
-  if (meta?.content) return meta.content
-  const scripts = Array.from(document.getElementsByTagName('script'))
-  for (const s of scripts) { const n = (s as any).nonce || s.getAttribute('nonce'); if (n) return n as string }
-  return (window as any).__webpack_nonce__
-}
-
-function formatFields(f: any) {
-  const locale = (window as any).__PWS_LOCALE || 'en'
-  if (!f) return 'n/a';
-  const sp = f.storyPoints || '?';
-  const sprint = f.sprint || '?';
-  const epic = f.epicLink || '?';
-  return `SP:${sp} ${t('sprint', locale)}:${sprint} ${t('epic', locale)}:${epic}`
-}
+// Unused helper functions removed (were for Deep Inspection section)
 
 const fadeIn = keyframes`from{opacity:0}to{opacity:1}`
 const slideUp = keyframes`from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}`

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { MetricCalculator } from './MetricCalculator';
+import { MetricCalculator } from '../../infrastructure/services/legacy/MetricCalculator';
 import { IssueCategorizer } from '../issue/IssueCategorizer';
 import type { BoardData, TelemetryConfig } from '../../types/telemetry';
 
@@ -20,8 +20,18 @@ describe('MetricCalculator', () => {
         includeBoardIssuesWhenSprintEmpty: true
     };
     const categorizer = new IssueCategorizer();
-    // Mock getStatusCategory
-    vi.spyOn(categorizer, 'getStatusCategory').mockImplementation((issue: any) => issue.fields.status.statusCategory.key);
+    // Mock getStatusCategory to handle both real issues and mock issues from classify()
+    vi.spyOn(categorizer, 'getStatusCategory').mockImplementation((issue: any) => {
+        // Real issue with statusCategory
+        if (issue.fields?.status?.statusCategory?.key) {
+            return issue.fields.status.statusCategory.key;
+        }
+        // Mock issue from classify() with just status.name
+        const name = (issue.fields?.status?.name || '').toLowerCase();
+        if (name.includes('done') || name.includes('resolved') || name.includes('closed')) return 'done';
+        if (name.includes('progress') || name.includes('doing') || name.includes('review')) return 'indeterminate';
+        return 'new';
+    });
 
     const calculator = new MetricCalculator(categorizer, config);
 
@@ -47,7 +57,7 @@ describe('MetricCalculator', () => {
         // Sprints = 2
         // Velocity = 13 / 2 = 6.5 -> 7 (round)
         expect(result.velocity).toBe(7);
-        expect(result.velocityExplanation).toContain('completed issues over last 2 sprints');
+        expect(result.velocityExplanation).toContain('exp:velocitySprints:count=2');
     });
 
     it('calculates velocity as 0 with explanation when no closed sprints', async () => {
@@ -61,7 +71,7 @@ describe('MetricCalculator', () => {
 
         const result = await calculator.calculate(boardData);
         expect(result.velocity).toBe(0);
-        expect(result.velocityExplanation).toBe('No closed sprints found to calculate velocity.');
+        expect(result.velocityExplanation).toBe('exp:noClosedSprints');
     });
 
     it('calculates cycle time from history', async () => {
@@ -119,7 +129,7 @@ describe('MetricCalculator', () => {
         // Items: 3
         // Rate: 3 / 1.28 = 2.3
         expect(result.throughput).toBeGreaterThan(0);
-        expect(result.throughputExplanation).toContain('Average items per week');
+        expect(result.throughputExplanation).toContain('exp:throughputAvg');
     });
 
     it('handles missing data gracefully', async () => {

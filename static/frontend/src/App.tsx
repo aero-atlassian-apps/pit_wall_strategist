@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
 import DashboardLayout from './components/Dashboard/DashboardLayout'
-import TrackMap from './components/Dashboard/TrackMap'
+import LiveCircuit from './components/Dashboard/LiveCircuit'
 import StrategyAssistant from './components/Dashboard/StrategyAssistant'
 import TelemetryDeck from './components/Dashboard/TelemetryDeck'
 import SprintHealthGauge from './components/Dashboard/SprintHealthGauge'
@@ -22,20 +22,107 @@ import { invoke } from '@forge/bridge'
 const platform = (import.meta as any).env?.VITE_PLATFORM || 'local'
 const isForgeContext = () => platform === 'atlassian'
 
-const AppContainer = (props: any) => <div className="app-container" {...props} />
-const Header = (props: any) => <header className="header" {...props} />
-const Logo = (props: any) => <div className="logo" {...props} />
-const LogoIcon = (props: any) => <div className="logo-icon" {...props} />
-const LogoText = (props: any) => <h1 className="logo-text" {...props} />
-const StatusBadge = (props: any) => <div className="status-badge" {...props} />
-const HeaderRight = (props: any) => <div className="header-right" {...props} />
-const SettingsButton = (props: any) => <button className="settings-button" {...props} />
-const SettingsOverlay = (props: any) => <div className="settings-overlay" {...props} />
-const TelemetryColumn = (props: any) => <div className="telemetry-col" {...props} />
-const RaceControlColumn = (props: any) => <div className="racecontrol-col" {...props} />
+const AppContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  overflow: hidden;
+`
+
+const Header = styled.header`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 56px;
+  padding: 0 24px;
+  background-color: var(--bg-panel); /* Pit wall darker header */
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+`
+
+const Logo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`
+
+const LogoIcon = styled.div`
+  font-size: 24px;
+`
+
+const LogoText = styled.h1`
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+  color: var(--text-primary);
+`
+
+const StatusBadge = styled.div<{ status: string }>`
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: ${({ status }) => status === 'CRITICAL' ? 'var(--color-danger)' : status === 'WARNING' ? 'var(--color-warning)' : 'var(--color-success)'};
+  color: #000;
+  margin-right: 24px;
+`
+
+const HeaderRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`
+
+const SettingsButton = styled.button<{ $active?: boolean }>`
+  background: ${({ $active }) => $active ? 'var(--bg-card-hover)' : 'transparent'};
+  border: 1px solid ${({ $active }) => $active ? 'var(--text-primary)' : 'transparent'};
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  font-size: 16px;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: var(--bg-card-hover);
+    transform: scale(1.1);
+  }
+`
+
+const SettingsOverlay = styled.div`
+  position: absolute;
+  top: 60px;
+  right: 24px;
+  width: 380px;
+  z-index: 100;
+  box-shadow: var(--shadow-floating);
+`
+
+const TelemetryColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  overflow: hidden;
+`
+
+const RaceControlColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  overflow: hidden;
+`
 
 function InnerApp() {
-  const { boardType, setBoardContext, boardName, sprintStatus } = useBoardContext()
+  const { boardType, boardId, setBoardContext, boardName, sprintStatus } = useBoardContext()
   const [telemetryData, setTelemetryData] = useState<any>(null)
   const [issues, setIssues] = useState<any[]>([])
   const [boardColumns, setBoardColumns] = useState<string[]>([])
@@ -49,7 +136,7 @@ function InnerApp() {
   const [healthData, setHealthData] = useState<any>(null)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [dictionaryOpen, setDictionaryOpen] = useState(false)
-  const [config, setConfig] = useState({ wipLimit: 8, assigneeCapacity: 3, stalledThresholdHours: 24, locale: 'en' })
+  const [config, setConfig] = useState({ wipLimit: 8, assigneeCapacity: 3, stalledThresholdHours: 24, locale: 'en', theme: 'dark' })
   const [locale, setLocale] = useState<string>('en')
   const [error, setError] = useState<string | null>(null)
   const [perms, setPerms] = useState<any>(null)
@@ -59,8 +146,27 @@ function InnerApp() {
   const Notice = (props: any) => <div className="notice" {...props} />
 
   useEffect(() => { fetchData() }, [])
-  useEffect(() => { if (isForgeContext()) { invoke('getConfig').then((res: any) => { if (res?.success && res.config) { setConfig(res.config); if (res.config.locale) setLocale(res.config.locale) } }).catch(() => { }); invoke('getLocale').then((res: any) => { if (res?.success && res.locale) setLocale(res.locale) }).catch(() => { }) } }, [])
+  // Config loading is deferred until boardId is known
+  useEffect(() => {
+    if (isForgeContext() && boardId) {
+      invoke('getConfig', { boardId }).then((res: any) => {
+        if (res?.success && res.config) {
+          setConfig(res.config)
+          if (res.config.locale) setLocale(res.config.locale)
+        }
+      }).catch(() => { })
+    }
+  }, [boardId])
+  useEffect(() => { if (isForgeContext()) { invoke('getLocale').then((res: any) => { if (res?.success && res.locale) setLocale(res.locale) }).catch(() => { }) } }, [])
   useEffect(() => { (window as any).__PWS_LOCALE = (config as any)?.locale || locale || 'en' }, [config, locale])
+
+  // Theme Application Effect
+  useEffect(() => {
+    const theme = (config as any).theme || 'dark'
+    document.body.dataset.theme = theme
+    // Clean up potentially conflicting classes if any
+    if (theme === 'light') document.body.classList.add('theme-light'); else document.body.classList.remove('theme-light')
+  }, [config])
 
   async function fetchData() {
     if (!isForgeContext()) {
@@ -81,6 +187,7 @@ function InnerApp() {
         setTelemetryData(result.data)
         setBoardContext({
           boardType: result.data.boardType,
+          boardId: result.data.boardId,
           boardName: result.data.sprintName, // Using sprintName as display name for period
           sprintName: result.data.sprintName,
           healthStatus: result.data.healthStatus || result.data.sprintStatus
@@ -91,19 +198,21 @@ function InnerApp() {
         setTelemetryData(null)
       }
 
-      const issuesResult = await invoke('getSprintIssues')
+      const bId = result.data.boardId;
+
+      const issuesResult = await invoke('getSprintIssues', { boardId: bId })
       if (issuesResult.success) {
         setIssues(issuesResult.issues)
         setBoardColumns(issuesResult.columns || [])
       } else {
         if (!error) setError(issuesResult.error || 'Failed to load issues')
-        try { const diag = await invoke('getPermissionsDiagnostics'); if (diag?.success) setPerms(diag.permissions) } catch { }
+        try { const diag = await invoke('getPermissionsDiagnostics', { boardId: bId }); if (diag?.success) setPerms(diag.permissions) } catch { }
       }
 
-      const timingResult = await invoke('getTimingMetrics')
-      const trendResult = await invoke('getTrendData')
-      const devOpsResult = await invoke('getDevOpsStatus')
-      const healthResult = await invoke('getHealth')
+      const timingResult = await invoke('getTimingMetrics', { boardId: bId })
+      const trendResult = await invoke('getTrendData', { boardId: bId })
+      const devOpsResult = await invoke('getDevOpsStatus', { boardId: bId })
+      const healthResult = await invoke('getHealth', { boardId: bId })
 
       if (timingResult?.success) setTimingMetrics(timingResult)
       if (trendResult?.success) setTrendData(trendResult)
@@ -112,7 +221,7 @@ function InnerApp() {
 
       // Fetch project context for adaptive UI
       try {
-        const contextResult = await invoke('getContext') as any
+        const contextResult = await invoke('getContext', { boardId: bId }) as any
         if (contextResult?.success && contextResult.context) {
           setProjectContext(contextResult.context)
         }
@@ -120,12 +229,13 @@ function InnerApp() {
 
       // Fetch advanced analytics (P0 intelligence features)
       try {
-        const analyticsResult = await invoke('getAdvancedAnalytics') as any
+        const analyticsResult = await invoke('getAdvancedAnalytics', { boardId: bId }) as any
         if (analyticsResult?.success) {
           setAdvancedAnalytics(analyticsResult)
           console.log('[App] Advanced Analytics loaded:', analyticsResult.sprintHealth?.status)
         }
       } catch (e) { console.warn('Advanced analytics not available:', e) }
+
 
       // Fetch permissions for UI enablement
       try {
@@ -186,6 +296,16 @@ function InnerApp() {
           {timingMetrics?.hasUnmapped && (<span title={t('unmappedTransitions', locale)} style={{ marginLeft: 8, fontFamily: 'monospace', fontSize: 12, color: '#f59e0b' }}>⚠</span>)}
 
           <SettingsButton $active={dictionaryOpen} onClick={() => setDictionaryOpen(!dictionaryOpen)} title={t('glossary', locale)} style={{ marginRight: 8 }}>📖</SettingsButton>
+          <SettingsButton
+            onClick={() => {
+              const newTheme = config.theme === 'dark' ? 'light' : 'dark'
+              setConfig((prev: any) => ({ ...prev, theme: newTheme }))
+            }}
+            title={config.theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            style={{ marginRight: 8 }}
+          >
+            {config.theme === 'dark' ? '☀️' : '🌙'}
+          </SettingsButton>
           <SettingsButton $active={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)} title={t('settings', locale)} data-tour="settings">⚙️</SettingsButton>
           <SettingsButton onClick={refreshAll} title={t('refreshAll', locale)}>⟳</SettingsButton>
         </HeaderRight>
@@ -201,7 +321,14 @@ function InnerApp() {
               (window as any).__PWS_LOCALE = newConfig.locale;
             }
             setSettingsOpen(false);
-            if (isForgeContext()) { invoke('setConfig', newConfig).catch(() => { }) }
+            if (isForgeContext()) {
+              invoke('setConfig', { ...newConfig, boardId })
+                .then(() => {
+                  // Trigger full data reload so new settings take effect immediately
+                  refreshAll()
+                })
+                .catch(() => { })
+            }
           }} onClose={() => setSettingsOpen(false)} />
         </SettingsOverlay>
       ) : (
@@ -223,6 +350,20 @@ function InnerApp() {
                 loading={!advancedAnalytics}
               />
             )}
+          </TelemetryColumn>
+
+          <div data-tour="track" style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '16px' }}>
+            <div style={{ flex: '1 1 auto', minHeight: 0 }}>
+              {issues && issues.length > 0 ? (
+                <LiveCircuit issues={issues} columns={boardColumns} locale={locale} />
+              ) : (
+                <EmptyState
+                  title={error ? t('connectionLost', locale) : (boardType === 'scrum' ? t('noSprintIssues', locale) : t('noBoardIssues', locale))}
+                  description={error ? `${t('error', locale)}: ${error}` : t('emptyStateDesc', locale)}
+                />
+              )}
+            </div>
+            {/* Predictive Risks - now under the circuit */}
             <PredictiveAlertsPanel
               preStallWarnings={advancedAnalytics?.preStallWarnings || []}
               bottleneck={advancedAnalytics?.bottleneck}
@@ -232,17 +373,6 @@ function InnerApp() {
                 if (issue) { setSelectedTicket(issue); setModalOpen(true) }
               }}
             />
-          </TelemetryColumn>
-
-          <div data-tour="track" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {issues && issues.length > 0 ? (
-              <TrackMap issues={issues} columns={boardColumns} locale={locale} />
-            ) : (
-              <EmptyState
-                title={error ? t('connectionLost', locale) : (boardType === 'scrum' ? t('noSprintIssues', locale) : t('noBoardIssues', locale))}
-                description={error ? `${t('error', locale)}: ${error}` : t('emptyStateDesc', locale)}
-              />
-            )}
           </div>
 
           <RaceControlColumn>
@@ -282,7 +412,7 @@ function InnerApp() {
           onAction={handleStrategyAction}
         />
       )}
-      <TerminologyModal open={dictionaryOpen} onClose={() => setDictionaryOpen(false)} />
+      <TerminologyModal open={dictionaryOpen} onClose={() => setDictionaryOpen(false)} boardType={boardType} />
       <DiagnosticsModal open={diagnosticsOpen} onClose={() => setDiagnosticsOpen(false)} health={healthData} />
     </AppContainer>
   )

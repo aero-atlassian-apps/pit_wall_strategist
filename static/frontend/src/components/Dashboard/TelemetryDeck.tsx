@@ -1,110 +1,124 @@
 import React, { useState } from 'react'
 import styled from 'styled-components'
-import F1Card from '../Common/F1Card'
+import { Panel } from '../Common/Panel'
 import Sparkline from '../Common/Sparkline'
-import StatusLight from '../Common/StatusLight'
-import { IconButton, RefreshIcon } from '../Common/Buttons'
-import { t } from '../../i18n'
+import { IconButton } from '../Common/Buttons'
+import { t, tPop } from '../../i18n'
+import { openAgentChat } from '../../utils/rovoBridge'
 import { useBoardContext } from '../../context/BoardContext'
-import DiagnosticsWidget from './DiagnosticsWidget'
+import { theme } from '../../styles/theme'
 
-const DeckContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => (theme as any).spacing.md};
-  height: 100%;
-  overflow-y: auto;
-  padding-right: 4px;
-`
+// --- Types ---
+type PopulationMode = 'scrum' | 'flow' | 'process'
+function getPopulationMode(boardType: string): PopulationMode {
+    switch (boardType) {
+        case 'scrum': return 'scrum'
+        case 'kanban': return 'flow'
+        case 'business': return 'process'
+        default: return 'scrum'
+    }
+}
 
-const VitalsGrid = styled.div`
+// --- Styled Components (Minimal, relying on base.css vars) ---
+const Grid2 = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: ${({ theme }) => (theme as any).spacing.sm};
+  gap: 12px;
+  margin-bottom: 16px;
 `
 
-const VitalCard = styled.div`
-  background: ${({ theme }) => (theme as any).colors.bgCard};
-  border: 1px solid ${({ theme }) => (theme as any).colors.border};
-  border-radius: ${({ theme }) => (theme as any).borderRadius.sm};
-  padding: 12px;
+const KPIBox = styled.div`
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
+  transition: border-color 0.2s;
+  
+  &:hover {
+    border-color: var(--border-subtle);
+  }
 `
 
-const VitalValue = styled.div<{ $color?: string }>`
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
-  font-size: 18px;
+const KPIValue = styled.div`
+  font-family: var(--font-mono);
+  font-size: 24px;
   font-weight: 700;
-  color: ${({ $color, theme }) => $color || (theme as any).colors.textPrimary};
+  color: var(--text-primary);
+  line-height: 1.2;
 `
-const VitalLabel = styled.div`
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
-  font-size: 9px;
-  color: ${({ theme }) => (theme as any).colors.textMuted};
+
+const KPILabel = styled.div`
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
   text-transform: uppercase;
+  letter-spacing: 0.5px;
   margin-top: 4px;
 `
 
-const SectionHeader = styled.div`
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
+const SectionTitle = styled.h3`
+  font-family: var(--font-mono);
   font-size: 10px;
-  color: ${({ theme }) => (theme as any).colors.textDim};
+  color: var(--text-tertiary);
   text-transform: uppercase;
-  margin-bottom: 8px;
   letter-spacing: 1px;
-  border-bottom: 1px solid ${({ theme }) => (theme as any).colors.border};
+  margin: 16px 0 8px 0;
   padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
 `
 
-const BarContainer = styled.div`
-  margin-bottom: 8px;
-`
-const BarLabelRow = styled.div`
+// Progress Bars
+const BarRow = styled.div`
   display: flex;
   justify-content: space-between;
   margin-bottom: 4px;
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
 `
-const BarValues = styled.span`font-weight: 600;`
-
-const ProgressBar = styled.div`
-  width: 100%;
+const BarTrack = styled.div`
   height: 6px;
-  background: ${({ theme }) => (theme as any).colors.bgMain};
+  background: var(--bg-main);
   border-radius: 3px;
   overflow: hidden;
+  margin-bottom: 12px;
 `
-const ProgressFill = styled.div<{ $percent: number; $color: string }>`
+const BarFill = styled.div<{ $percent: number; $color: string }>`
   height: 100%;
   width: ${({ $percent }) => Math.min($percent, 100)}%;
-  background-color: ${({ $color }) => $color};
-  transition: width 0.5s ease;
+  background: ${({ $color }) => $color};
+  transition: width 0.4s ease;
 `
 
-const Tabs = styled.div`
+// Tabs
+const TabContainer = styled.div`
   display: flex;
-  gap: 2px;
+  gap: 4px;
   margin-bottom: 12px;
-  background: ${({ theme }) => (theme as any).colors.bgMain};
   padding: 2px;
+  background: var(--bg-main);
   border-radius: 6px;
 `
 const Tab = styled.button<{ $active: boolean }>`
   flex: 1;
-  background: ${({ $active, theme }) => $active ? (theme as any).colors.bgCardHover : 'transparent'};
-  color: ${({ $active, theme }) => $active ? (theme as any).colors.textPrimary : (theme as any).colors.textMuted};
   border: none;
+  background: ${({ $active }) => $active ? 'var(--bg-card)' : 'transparent'};
+  color: ${({ $active }) => $active ? 'var(--text-primary)' : 'var(--text-tertiary)'};
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
   padding: 6px;
   border-radius: 4px;
-  font-size: 10px;
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
   cursor: pointer;
-  font-weight: 600;
+  transition: all 0.2s;
+  
+  &:hover {
+    color: var(--text-primary);
+  }
 `
 
 type Props = {
@@ -119,155 +133,166 @@ type Props = {
 export default function TelemetryDeck({ telemetryData, timingMetrics, trendData, boardType = 'scrum', projectContext, onRefresh }: Props) {
     const locale = (window as any).__PWS_LOCALE || 'en'
     const [activeTab, setActiveTab] = useState<'vitals' | 'trends'>('vitals')
-    const { boardType: ctxBoardType } = useBoardContext() // prefer context if available
+    const { boardType: ctxBoardType } = useBoardContext()
     const effectiveBoardType = ctxBoardType || boardType
-    const isKanban = effectiveBoardType === 'kanban'
+    const populationMode = getPopulationMode(effectiveBoardType)
 
-    // Helper to get colors
+    const isScrum = effectiveBoardType === 'scrum'
+    const isFlow = effectiveBoardType === 'kanban'
+    const isProcess = effectiveBoardType === 'business'
+
+    // Refactor logic from old component
     const getWipColor = (load: number) => {
-        if (load >= 100) return '#FF0033'
-        if (load >= 80) return '#F4D03F'
-        return '#39FF14'
+        if (load >= 100) return 'var(--color-danger)'
+        if (load >= 80) return 'var(--color-warning)'
+        return 'var(--color-success)'
     }
 
-    // Check for disabled status
+    const HeaderActions = (
+        <div className="flex gap-2">
+            <IconButton
+                onClick={() => openAgentChat(t('rovo_briefingPrompt', locale))}
+                title={t('rovo_briefingBtn', locale)}
+                size="sm"
+                style={{ border: '1px solid var(--border)' }}
+            >
+                🤖
+            </IconButton>
+            <IconButton
+                onClick={onRefresh}
+                size="sm"
+                ariaLabel={t('refresh', locale)}
+                style={{ border: '1px solid var(--border)' }}
+            >
+                ⟳
+            </IconButton>
+        </div>
+    )
+
     if (telemetryData?.status === 'disabled') {
-         return (
-             <F1Card
-                 title={isKanban ? t('flowTelemetry', locale) : t('sprintTelemetry', locale)}
-                 fullHeight
-                 action={<IconButton onClick={onRefresh} size="sm" ariaLabel={t('refresh', locale)}><RefreshIcon /></IconButton>}
-             >
-                 <DeckContainer>
-                     <div style={{ textAlign: 'center', color: '#64748B', padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
-                        {t('metricsDisabled', locale) || 'Metrics Disabled (Access Denied)'}
-                     </div>
-                     <DiagnosticsWidget />
-                 </DeckContainer>
-             </F1Card>
-         )
+        return (
+            <Panel title={tPop('telemetryTitle', populationMode, locale)} rightAction={HeaderActions}>
+                <div className="flex items-center justify-center h-full p-4 text-muted font-mono text-sm">
+                    {t('metricsDisabled', locale)}
+                </div>
+            </Panel>
+        )
     }
 
     return (
-        <F1Card
-            title={isKanban ? t('flowTelemetry', locale) : t('sprintTelemetry', locale)}
-            fullHeight
-            action={<IconButton onClick={onRefresh} size="sm" ariaLabel={t('refresh', locale)}><RefreshIcon /></IconButton>}
-        >
-            <DeckContainer>
+        <Panel title={tPop('telemetryTitle', populationMode, locale)} rightAction={HeaderActions} className="telemetry-panel">
 
-                {/* Adaptive Top Stats based on board type */}
-                <VitalsGrid>
-                    {isKanban ? (
+            {/* KPI Grid */}
+            <Grid2 style={{ marginTop: 16 }}>
+                {isScrum && (
+                    <>
+                        <KPIBox>
+                            <KPIValue>{telemetryData?.velocity ?? '-'}</KPIValue>
+                            <KPILabel>{telemetryData?.velocityWindow ? `${tPop('progressMetric', 'scrum', locale)} (${telemetryData.velocityWindow})` : tPop('progressMetric', 'scrum', locale)}</KPILabel>
+                        </KPIBox>
+                        <KPIBox>
+                            <KPIValue>{telemetryData?.completion || 0}%</KPIValue>
+                            <KPILabel>{tPop('completion', 'scrum', locale)}</KPILabel>
+                        </KPIBox>
+                    </>
+                )}
+                {isFlow && (
+                    <>
+                        <KPIBox>
+                            <KPIValue>{telemetryData?.cycleTime ? `${telemetryData.cycleTime}h` : '-'}</KPIValue>
+                            <KPILabel>{tPop('timeMetric', 'flow', locale)}</KPILabel>
+                        </KPIBox>
+                        <KPIBox>
+                            <KPIValue>{telemetryData?.throughput ?? '-'}</KPIValue>
+                            <KPILabel>{tPop('progressMetric', 'flow', locale)}</KPILabel>
+                        </KPIBox>
+                    </>
+                )}
+                {isProcess && (
+                    <>
+                        <KPIBox>
+                            <KPIValue>{telemetryData?.cycleTime ? `${telemetryData.cycleTime}h` : '-'}</KPIValue>
+                            <KPILabel>{tPop('timeMetric', 'process', locale)}</KPILabel>
+                        </KPIBox>
+                        <KPIBox>
+                            <KPIValue>{telemetryData?.throughput ?? '-'}</KPIValue>
+                            <KPILabel>{tPop('progressMetric', 'process', locale)}</KPILabel>
+                        </KPIBox>
+                    </>
+                )}
+            </Grid2>
+
+            {/* Tabs */}
+            <TabContainer>
+                <Tab $active={activeTab === 'vitals'} onClick={() => setActiveTab('vitals')}>{t('vitals', locale)}</Tab>
+                <Tab $active={activeTab === 'trends'} onClick={() => setActiveTab('trends')}>{t('trends', locale)}</Tab>
+            </TabContainer>
+
+            {/* Panels */}
+            {activeTab === 'vitals' && (
+                <div className="animate-slide-in">
+                    <SectionTitle>{tPop('load', populationMode, locale)}</SectionTitle>
+
+                    {/* WIP Load */}
+                    <BarRow>
+                        <span>{tPop('workItems', populationMode, locale)}</span>
+                        <span style={{ color: getWipColor(telemetryData?.wipLoad || 0), fontWeight: 700 }}>
+                            {telemetryData?.wipCurrent || 0} / {telemetryData?.wipLimit || '∞'}
+                        </span>
+                    </BarRow>
+                    <BarTrack>
+                        <BarFill
+                            $percent={telemetryData?.wipLoad || 0}
+                            $color={getWipColor(telemetryData?.wipLoad || 0)}
+                        />
+                    </BarTrack>
+
+                    {/* Burnout by Assignee */}
+                    {telemetryData?.teamBurnout && Object.keys(telemetryData.teamBurnout).length > 0 && (
                         <>
-                            <VitalCard title={`${telemetryData?.cycleTimeExplanation || ''}${telemetryData?.cycleTimeWindow ? `\n${t('window', locale)}: ${telemetryData.cycleTimeWindow}` : ''}`}>
-                                <VitalValue>{telemetryData?.cycleTime ? `${telemetryData.cycleTime}h` : '-'}</VitalValue>
-                                <VitalLabel>{t('avgCycleTime', locale)}</VitalLabel>
-                            </VitalCard>
-                            <VitalCard title={`${telemetryData?.throughputExplanation || ''}${telemetryData?.throughputWindow ? `\n${t('window', locale)}: ${telemetryData.throughputWindow}` : ''}`}>
-                                <VitalValue>{telemetryData?.throughput || '-'}</VitalValue>
-                                <VitalLabel>{t('throughput', locale)}</VitalLabel>
-                            </VitalCard>
-                        </>
-                    ) : (
-                        <>
-                            <VitalCard title={`${telemetryData?.velocityExplanation || ''}${telemetryData?.velocitySource ? `\n${t('source', locale)}: ${telemetryData.velocitySource}` : ''}${telemetryData?.velocityWindow ? `\n${t('window', locale)}: ${telemetryData.velocityWindow}` : ''}`}>
-                                <VitalValue>{telemetryData?.velocity ? `${telemetryData.velocity}` : '-'}</VitalValue>
-                                <VitalLabel>{t('velocity', locale)}</VitalLabel>
-                            </VitalCard>
-                            <VitalCard>
-                                <VitalValue>{telemetryData?.completion || 0}%</VitalValue>
-                                <VitalLabel>{t('completion', locale)}</VitalLabel>
-                            </VitalCard>
+                            <SectionTitle>{t('teamBurnout', locale)}</SectionTitle>
+                            {Object.entries(telemetryData.teamBurnout).map(([name, value]: [string, any]) => (
+                                <div key={name}>
+                                    <BarRow>
+                                        <span>{name}</span>
+                                        <span>{value}%</span>
+                                    </BarRow>
+                                    <BarTrack style={{ height: 4, marginBottom: 8 }}>
+                                        <BarFill
+                                            $percent={value}
+                                            $color={value >= 80 ? 'var(--color-danger)' : value >= 60 ? 'var(--color-warning)' : 'var(--color-success)'}
+                                        />
+                                    </BarTrack>
+                                </div>
+                            ))}
                         </>
                     )}
-                </VitalsGrid>
+                </div>
+            )}
 
-                <Tabs role="tablist">
-                    <Tab
-                        $active={activeTab === 'vitals'}
-                        onClick={() => setActiveTab('vitals')}
-                        role="tab"
-                        aria-selected={activeTab === 'vitals'}
-                        aria-controls="panel-vitals"
-                        id="tab-vitals"
-                    >
-                        {t('vitals', locale)}
-                    </Tab>
-                    <Tab
-                        $active={activeTab === 'trends'}
-                        onClick={() => setActiveTab('trends')}
-                        role="tab"
-                        aria-selected={activeTab === 'trends'}
-                        aria-controls="panel-trends"
-                        id="tab-trends"
-                    >
-                        {t('trends', locale)}
-                    </Tab>
-                </Tabs>
-
-                {activeTab === 'vitals' && (
-                    <div role="tabpanel" id="panel-vitals" aria-labelledby="tab-vitals">
-                        <SectionHeader>{isKanban ? t('flowLoad', locale) : t('workInProgress', locale)}</SectionHeader>
-                        <BarContainer>
-                            <BarLabelRow>
-                                <span>{isKanban ? t('wipUtilization', locale) : t('sprintLoad', locale)}</span>
-                                <BarValues style={{ color: getWipColor(telemetryData?.wipLoad || 0) }}>
-                                    {telemetryData?.wipCurrent || 0}/{telemetryData?.wipLimit || 0}
-                                </BarValues>
-                            </BarLabelRow>
-                            <ProgressBar>
-                                <ProgressFill
-                                    $percent={telemetryData?.wipLoad || 0}
-                                    $color={getWipColor(telemetryData?.wipLoad || 0)}
-                                />
-                            </ProgressBar>
-                        </BarContainer>
-
-                        <SectionHeader>{t('teamBurnout', locale)}</SectionHeader>
-                        {Object.entries(telemetryData?.teamBurnout || {}).map(([name, value]: [string, any]) => (
-                            <BarContainer key={name}>
-                                <BarLabelRow>
-                                    <span>{name}</span>
-                                    <BarValues>{value}%</BarValues>
-                                </BarLabelRow>
-                                <ProgressBar>
-                                    <ProgressFill
-                                        $percent={value}
-                                        $color={value >= 80 ? '#FF0033' : value >= 60 ? '#F4D03F' : '#39FF14'}
-                                    />
-                                </ProgressBar>
-                            </BarContainer>
-                        ))}
-                        <DiagnosticsWidget />
+            {activeTab === 'trends' && trendData && (
+                <div className="animate-slide-in">
+                    <SectionTitle>{t('performanceTrends', locale)}</SectionTitle>
+                    <div style={{ marginBottom: 16 }}>
+                        <Sparkline
+                            data={trendData.wip?.data}
+                            label={t('wipConsistency', locale)}
+                            direction={trendData.wip?.direction}
+                            change={trendData.wip?.change}
+                        />
                     </div>
-                )}
-
-                {activeTab === 'trends' && trendData && (
-                    <div role="tabpanel" id="panel-trends" aria-labelledby="tab-trends">
-                        <SectionHeader>{t('performanceTrends', locale)}</SectionHeader>
-                        <div style={{ marginBottom: 16 }}>
-                            <Sparkline
-                                data={trendData.wip?.data}
-                                label={t('wipConsistency', locale)}
-                                direction={trendData.wip?.direction}
-                                change={trendData.wip?.change}
-                            />
-                        </div>
-                        <div>
-                            <Sparkline
-                                data={trendData.velocity?.data}
-                                label={t('velocity', locale)}
-                                direction={trendData.velocity?.direction}
-                                change={trendData.velocity?.change}
-                                invertColors={true}
-                            />
-                        </div>
-                        <DiagnosticsWidget />
+                    <div>
+                        <Sparkline
+                            data={trendData.velocity?.data}
+                            label={t('velocity', locale)}
+                            direction={trendData.velocity?.direction}
+                            change={trendData.velocity?.change}
+                            invertColors={true}
+                        />
                     </div>
-                )}
-
-            </DeckContainer>
-        </F1Card>
+                </div>
+            )}
+        </Panel>
     )
 }
+

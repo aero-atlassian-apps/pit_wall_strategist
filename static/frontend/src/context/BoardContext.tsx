@@ -4,6 +4,7 @@ export type BoardType = 'scrum' | 'kanban' | 'business'
 
 export interface BoardContextType {
   boardType: BoardType
+  boardId?: number
   boardName: string
   sprintName?: string
   sprintStatus?: string
@@ -25,7 +26,7 @@ const defaultContext: BoardContextType = {
     hasEstimation: true,
     hasReports: true
   },
-  setBoardContext: () => {}
+  setBoardContext: () => { }
 }
 
 const BoardContext = createContext<BoardContextType>(defaultContext)
@@ -39,25 +40,26 @@ export const BoardContextProvider = ({ children }: { children: React.ReactNode }
     // Infer capabilities from data
     const boardType = data.boardType || 'scrum'
     const capabilities = {
-        hasSprints: boardType === 'scrum',
-        hasBacklog: boardType !== 'business', // Simplistic assumption
-        hasEstimation: boardType !== 'business',
-        hasReports: true
+      hasSprints: boardType === 'scrum',
+      hasBacklog: boardType !== 'business', // Simplistic assumption
+      hasEstimation: boardType !== 'business',
+      hasReports: true
     }
 
     setContextState({
-        boardType,
-        boardName: data.boardName || 'Board',
-        sprintName: data.sprintName,
-        sprintStatus: data.sprintStatus || data.healthStatus,
-        capabilities
+      boardType,
+      boardId: data.boardId,
+      boardName: data.boardName || 'Board',
+      sprintName: data.sprintName,
+      sprintStatus: data.sprintStatus || data.healthStatus,
+      capabilities
     })
   }
 
   const value = {
-      ...defaultContext,
-      ...contextState,
-      setBoardContext
+    ...defaultContext,
+    ...contextState,
+    setBoardContext
   }
 
   return (

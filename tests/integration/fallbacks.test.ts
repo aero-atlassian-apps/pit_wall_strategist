@@ -1,47 +1,33 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
+import { getPopulationMode } from '../../src/types/telemetry'
 
-describe('fetchSprintData fallbacks', () => {
-  it('uses JQL fallback when no active sprint', async () => {
-    vi.doMock('@forge/api', () => {
-      const json = (x: any) => ({ ok: true, json: async () => x })
-      const notOk = (status = 404, body = '') => ({ ok: false, status, text: async () => body })
-      return {
-        default: {
-          asApp: () => ({
-            requestJira: async (path: any) => {
-              const p = String(path)
-              if (p.includes('/rest/agile/1.0/board?projectKeyOrId=')) return json({ values: [{ id: 1, name: 'Board', type: 'scrum' }] })
-              if (p.includes('/rest/agile/1.0/board/1/sprint?state=active')) return json({ values: [] })
-              if (p.includes('/rest/agile/1.0/board/1/sprint?state=future')) return json({ values: [{ id: 99, name: 'Sprint 99', state: 'future' }] })
-              if (p.includes('/configuration')) return json({ filter: { id: 123 } })
-              if (p.includes('/rest/api/3/search?jql=')) return notOk(400, 'bad request')
-              return notOk(404)
-            }
-          }),
-          asUser: () => ({
-            requestJira: async (path: any, opts: any) => {
-              const p = String(path)
-              if (p.includes('/rest/api/3/search/jql') && opts?.method === 'POST') {
-                return { ok: true, json: async () => ({ issues: [{ key: 'T-1', fields: { status: { statusCategory: { key: 'new' } }, summary: 'X' } }] }) }
-              }
-              return notOk(404)
-            }
-          })
-        },
-        route: (s: TemplateStringsArray, ...v: any[]) => String.raw({ raw: s }, ...v)
-      }
-    })
+describe('Population Mode Helper', () => {
+  it('returns scrum for scrum board type', () => {
+    expect(getPopulationMode('scrum')).toBe('scrum')
+  })
 
-    const telemetry = await import('../../src/resolvers/telemetryUtils')
-    vi.spyOn(telemetry, 'detectBoardType').mockResolvedValue({ type: 'scrum', boardId: 1, boardName: 'Board' } as any)
+  it('returns flow for kanban board type', () => {
+    expect(getPopulationMode('kanban')).toBe('flow')
+  })
 
-    const data = await telemetry.fetchSprintData('TEST')
-    expect(data.boardType).toBe('scrum')
-    expect((data.issues || []).length).toBeGreaterThan(0)
-    // sprintName property is deprecated in favor of sprint.name, but if we are using the new structure it might not be on the root.
-    // The previous implementation added it to the root if calling fetchSprintData alias.
-    // However, the new fetchBoardData returns BoardData where sprint info is in `sprint` object.
-    expect(data.sprint?.name).toContain('Sprint')
+  it('returns process for business board type', () => {
+    expect(getPopulationMode('business')).toBe('process')
   })
 })
 
+describe('Board Type to Population Mode Mapping', () => {
+  it('maps software scrum boards to scrum population', () => {
+    // Software space + Scrum board = Sprint-oriented teams
+    expect(getPopulationMode('scrum')).toBe('scrum')
+  })
+
+  it('maps software kanban boards to flow population', () => {
+    // Software space + Kanban board = Lean/Flow teams
+    expect(getPopulationMode('kanban')).toBe('flow')
+  })
+
+  it('maps business projects to process population', () => {
+    // Business space (JWM) = Business teams (Marketing, HR, Finance)
+    expect(getPopulationMode('business')).toBe('process')
+  })
+})

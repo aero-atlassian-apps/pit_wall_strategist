@@ -115,7 +115,7 @@ export async function getProjectContext(projectKey: string): Promise<ProjectCont
                         name: col.name,
                         statuses: (col.statuses || []).map((s: any) => ({
                             id: s.id,
-                            name: s.self ? '' : '', // We'll enrich this below
+                            name: '', // Will be enriched from project statuses below
                             categoryKey: ''
                         }))
                     }))

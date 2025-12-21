@@ -2,7 +2,10 @@ import api, { route } from '@forge/api'
 import type { JiraIssue } from '../types/jira'
 import type { LeadTimeResult, SectorTimes } from '../types/telemetry'
 import { getProjectStatusMap, resolveCategoryForIssue } from './statusMap'
-import { detectBoardType } from './telemetryUtils'
+import { JiraBoardRepository } from '../infrastructure/jira/JiraBoardRepository'
+const boardRepository = new JiraBoardRepository()
+// Compatibility wrapper if needed, or replace usage site
+const detectBoardType = (key: string) => boardRepository.detectBoardType(key)
 
 const STATUS_CATEGORIES = { TODO: 'new', IN_PROGRESS: 'indeterminate', DONE: 'done' }
 
@@ -67,7 +70,9 @@ export async function getIssueStatusCategoryTimes(issueKey: string, context?: an
     const issueTypeName = issue?.fields?.issuetype?.name
     for (let i = 1; i < transitions.length; i++) { const transition = transitions[i]; const duration = (transition.timestamp.getTime() - lastTimestamp.getTime()) / (1000 * 60 * 60); if (categoryTimes[lastCategory] !== undefined) categoryTimes[lastCategory] += duration; lastCategory = approximateCategoryFromStatus(transition.toStatus, statusMap, issueTypeName); lastTimestamp = transition.timestamp }
     const finalDuration = (now.getTime() - lastTimestamp.getTime()) / (1000 * 60 * 60)
-    if (categoryTimes[currentCategory] !== undefined) categoryTimes[currentCategory] += finalDuration
+    // Use currentCategory if available, otherwise fall back to lastCategory from transitions
+    const finalCategory = currentCategory || lastCategory
+    if (categoryTimes[finalCategory] !== undefined) categoryTimes[finalCategory] += finalDuration
     return categoryTimes
   } catch (error) { return { new: 0, indeterminate: 0, done: 0 } }
 }
@@ -122,7 +127,7 @@ export function mapStatusToColumn(statusName?: string, columns?: Array<{ name: s
   return col?.name || null
 }
 
-function approximateCategoryFromStatus(statusName?: string, statusMap?: any, issueTypeName?: string): 'new' | 'indeterminate' | 'done' { if (!statusName) return 'new'; const mapped = resolveCategoryForIssue(statusMap || null, statusName, issueTypeName); if (mapped) return mapped; const name = statusName.toLowerCase(); if (name.includes('done') || name.includes('closed') || name.includes('resolved') || name.includes('complete') || name.includes('finished') || name.includes('released')) return 'done'; if (name.includes('to do') || name.includes('todo') || name.includes('open') || name.includes('backlog') || name.includes('new') || name.includes('created')) return 'new'; return 'indeterminate' }
+function approximateCategoryFromStatus(statusName?: string, statusMap?: any, issueTypeName?: string): 'new' | 'indeterminate' | 'done' { if (!statusName) return 'indeterminate'; const mapped = resolveCategoryForIssue(statusMap || null, statusName, issueTypeName); if (mapped) return mapped; const name = statusName.toLowerCase(); if (name.includes('done') || name.includes('closed') || name.includes('resolved') || name.includes('complete') || name.includes('finished') || name.includes('released')) return 'done'; if (name.includes('to do') || name.includes('todo') || name.includes('open') || name.includes('backlog') || name.includes('new') || name.includes('created')) return 'new'; return 'indeterminate' }
 
 function getDefaultCycleTime(): SectorTimes { return {} }
 

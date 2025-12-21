@@ -1,12 +1,78 @@
-/* Forge CSP-safe base CSS to ensure layout and fonts without inline styles */
+/* Forge-Safe Design System Variables */
 :root {
-  --bg-main: #0F172A;
+  /* =========================================
+     LIGHT MODE (Default / Jira Native Feel)
+     ========================================= */
+  --bg-main: #F4F5F7;           /* N20 */
+  --bg-panel: #FFFFFF;          /* N0 */
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #EBECF0;     /* N30 */
+  
+  --border: #DFE1E6;            /* N40 */
+  --border-subtle: #EBECF0;
+  
+  --text-primary: #172B4D;      /* N800 */
+  --text-secondary: #505F79;    /* N600 */
+  --text-tertiary: #6B778C;     /* N500 */
+  --text-inverse: #FFFFFF;
+  
+  --color-success: #00875A;     /* G400 */
+  --color-warning: #FF991F;     /* Y400 */
+  --color-danger: #DE350B;      /* R400 */
+  --color-info: #0052CC;        /* B400 */
+  
+  --color-success-dim: rgba(0, 135, 90, 0.2);
+  --color-warning-dim: rgba(255, 153, 31, 0.2);
+  --color-danger-dim: rgba(222, 53, 11, 0.2);
+
+  --brand-primary: #FF0033;     /* F1 Red */
+  --brand-secondary: #253858;   /* N700 */
+  --circuit-asphalt: #DFE1E6;
+
+  --chart-1: #0052CC;
+  --chart-2: #00875A;
+  --chart-3: #6554C0;
+  
+  --shadow-card: 0 1px 2px rgba(9, 30, 66, 0.25);
+  --shadow-floating: 0 4px 8px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31);
+}
+
+/* =========================================
+   DARK MODE (Pit Wall / F1 Tech Feel)
+   ========================================= */
+[data-theme='dark'], body.theme-dark {
+  --bg-main: #0F172A;           /* Slate 900 */
+  --bg-panel: #1E293B;          /* Slate 800 */
   --bg-card: #1E293B;
-  --border: #334155;
-  --text-primary: #F8FAFC;
-  --text-muted: #94A3B8;
-  --red-alert: #FF0033;
-  --purple: #BF5AF2;
+  --bg-card-hover: #334155;     /* Slate 700 */
+  
+  --border: #334155;            /* Slate 700 */
+  --border-subtle: #1E293B;
+  
+  --text-primary: #F8FAFC;      /* Slate 50 */
+  --text-secondary: #94A3B8;    /* Slate 400 */
+  --text-tertiary: #64748B;     /* Slate 500 */
+  --text-inverse: #000000;
+
+  --color-success: #39FF14;     /* Neon Green */
+  --color-warning: #F4D03F;     /* Safety Yellow */
+  --color-danger: #FF0033;      /* Flag Red */
+  --color-info: #38BDF8;        /* Sky Blue */
+
+  --color-success-dim: rgba(57, 255, 20, 0.15);
+  --color-warning-dim: rgba(244, 208, 63, 0.15);
+  --color-danger-dim: rgba(255, 0, 51, 0.15);
+
+  --brand-primary: #FF0033;
+  --brand-secondary: #020617;
+  --circuit-asphalt: #334155;
+  
+  --chart-1: #38BDF8;
+  --chart-2: #39FF14;
+  --chart-3: #BF5AF2;
+
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --shadow-floating: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
 }
 
 html, body, #root {
@@ -20,77 +86,47 @@ body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Ensure main grid respects viewport height in case styled injection is delayed */
-main {
-  min-height: calc(100vh - 73px);
-}
+/* Typography Utilities */
+.font-mono { font-family: 'Roboto Mono', 'JetBrains Mono', monospace; }
+.font-ui { font-family: 'Inter', sans-serif; }
 
-/* Header */
-.app-container { width: 100%; height: 100vh; background-color: var(--bg-main); overflow: hidden }
-.header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-main) 100%) }
-.logo { display: flex; align-items: center; gap: 16px }
-.logo-icon { width: 40px; height: 40px; border-radius: 8px; display:flex; align-items:center; justify-content:center; font-size:20px; background: linear-gradient(135deg, var(--red-alert), var(--purple)) }
-.logo-text { font-family: 'Roboto Mono', 'JetBrains Mono', 'Courier New', monospace; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--text-primary) }
-.header-right { display:flex; align-items:center; gap:16px }
-.status-badge { font-family: 'Roboto Mono', 'JetBrains Mono', 'Courier New', monospace; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px; padding:4px 12px; border-radius:4px; background-color:#39FF14; color:#fff }
-.settings-button { width:36px; height:36px; border:1px solid var(--border); border-radius:4px; background: transparent; color: var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px }
-.settings-overlay { padding:24px; max-width:500px; margin:0 auto; height:calc(100vh - 73px); overflow-y:auto }
+.text-xs { font-size: 10px; }
+.text-sm { font-size: 12px; }
+.text-base { font-size: 14px; }
+.text-lg { font-size: 16px; }
+.text-xl { font-size: 20px; }
+.text-2xl { font-size: 24px; }
+.text-3xl { font-size: 32px; }
 
-/* Main grid */
-.dashboard-layout { display:grid; grid-template-columns:300px 1fr 400px; gap:12px; height:calc(100vh - 73px); padding:12px; overflow:hidden }
-.panel-left { display:flex; flex-direction:column; gap:16px; overflow:hidden }
-.panel-center { display:flex; flex-direction:column; overflow:hidden }
-.panel-right { display:flex; flex-direction:column; gap:16px; overflow:hidden }
+.font-bold { font-weight: 700; }
+.font-medium { font-weight: 500; }
 
-/* Telemetry and trends */
-.telemetry-col { display:flex; flex-direction:column; gap:16px; height:100%; overflow:auto }
-.trend-row { display:flex; gap:16px; padding:0 8px }
-.trend-col { flex:1 }
+.text-muted { color: var(--text-secondary); }
+.text-dim { color: var(--text-tertiary); }
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-danger { color: var(--color-danger); }
 
-/* Race control */
-.racecontrol-col { display:flex; flex-direction:column; gap:16px; height:100%; overflow:auto }
+.uppercase { text-transform: uppercase; }
+.tracking-wider { letter-spacing: 1.5px; }
 
-/* Utility */
-.mt-auto { margin-top:auto }
-.mt-sm { margin-top:8px }
-.p-md { padding:16px }
-.center-vert { display:flex; flex-direction:column; justify-content:center }
-.legend-row { display:flex; gap:16px; flex-wrap:wrap }
+/* Layout Utilities */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: 8px; }
+.gap-4 { gap: 16px; }
+.p-4 { padding: 16px; }
+.h-full { height: 100%; }
+.w-full { width: 100%; }
 
-/* Fuel Load progress bars */
-.bar { width:100%; height:8px; background: var(--bg-main); border-radius:4px; overflow:hidden }
-.bar__fill { height:100%; border-radius:4px; transition: width .5s ease-out }
-.bar__fill--critical { background: var(--red-alert) }
-.bar__fill--warning { background: #F4D03F }
-.bar__fill--ok { background: #39FF14 }
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-main); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
 
-/* Race Control feed */
-.feed { display:flex; flex-direction:column; height:100% }
-.feed-scroll { flex:1; overflow-y:auto; padding-right:6px }
-.feed-item { display:flex; gap:8px; padding:4px 0; border-bottom:1px solid rgba(51,65,85,.13) }
-.feed-time { font-family: monospace; font-size:10px; color: var(--text-muted) }
-.feed-msg { font-family: monospace; font-size:11px }
-.feed-msg--critical { color: var(--red-alert) }
-.feed-msg--warning { color: #F4D03F }
-.feed-msg--success { color: #39FF14 }
-.feed-msg--info { color: var(--text-primary) }
-
-/* Track map */
-.track-card { display:flex; flex-direction:column; height:100%; gap:16px }
-.sectors { flex:1; display:flex; flex-direction:column; justify-content:center; gap:24px; padding:24px }
-.sector { display:flex; align-items:center; gap:16px }
-.sector-label { width:100px; font-family: monospace; font-size:10px; color: var(--text-muted); text-transform: uppercase }
-.sector-sublabel { font-size:8px; opacity:0.7 }
-.lane { flex:1; height:40px; border-radius:20px; background: var(--border); display:flex; align-items:center; padding:0 16px }
-.lane-dots { display:flex; gap:8px }
-.lane-dot { width:14px; height:14px; border-radius:50%; background: var(--text-primary); border:2px solid var(--purple) }
-.lane-dot--stalled { background: var(--red-alert); border-color: var(--red-alert) }
-.track-stats { display:flex; justify-content:space-around; padding:16px }
-.stat { text-align:center }
-.stat-value { font-family: monospace; font-size:24px; font-weight:700 }
-.stat-label { font-family: monospace; font-size:9px; color: var(--text-muted); text-transform: uppercase; margin-top:4px }
-.c-purple { color: var(--purple) }
-.c-yellow { color: var(--yellow-flag, #F4D03F) }
-.c-green { color: #39FF14 }

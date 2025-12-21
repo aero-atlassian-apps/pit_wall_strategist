@@ -1,6 +1,6 @@
 import api, { route } from '@forge/api';
 import { JiraIssue, JiraSearchResult } from '../../types/jira';
-import { recordFetchStatus } from '../fetchStatus';
+import { recordFetchStatus } from '../../resolvers/fetchStatus';
 import { Sprint } from '../../types/telemetry';
 
 /**
@@ -131,11 +131,16 @@ export class JiraDataService {
         let response = responseUser.ok ? responseUser : await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=closed&maxResults=${limit}`, { headers: { Accept: 'application/json' } });
         if (response.ok) {
             const data = await response.json();
-            // The API returns sprints in order. We want the most recent ones.
-            const sprints = data.values || [];
-            // If we have more than limit, take the last 'limit' ones (most recent)
+            // Jira returns closed sprints - sort by completeDate descending to get most recent
+            const sprints = (data.values || [])
+                .sort((a: any, b: any) => {
+                    const dateA = new Date(a.completeDate || a.endDate || 0).getTime();
+                    const dateB = new Date(b.completeDate || b.endDate || 0).getTime();
+                    return dateB - dateA; // Most recent first
+                });
             recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=closed`, ok: true, status: 200 });
-            return sprints.slice(-limit);
+            // Take the first 'limit' (most recently closed sprints)
+            return sprints.slice(0, limit);
         }
         try { const txt = await response.text(); console.log(`[Telemetry] getClosedSprints Error: ${response.status} ${txt}`) } catch { }
         recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=closed`, ok: false, status: response.status });

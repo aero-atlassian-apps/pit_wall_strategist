@@ -11,11 +11,13 @@ describe('telemetry parity and correctness', () => {
       issues: [
         {
           key: 'X-1',
-          fields: { created: new Date(Date.now() - 3*24*3600000).toISOString(), updated: new Date().toISOString() },
-          changelog: { histories: [
-            { created: new Date(Date.now() - 2*24*3600000).toISOString(), items: [{ field: 'status', fromString: 'To Do', toString: 'In Progress' }] },
-            { created: new Date(Date.now() - 1*24*3600000).toISOString(), items: [{ field: 'status', fromString: 'In Progress', toString: 'Done' }] }
-          ] }
+          fields: { created: new Date(Date.now() - 3 * 24 * 3600000).toISOString(), updated: new Date().toISOString() },
+          changelog: {
+            histories: [
+              { created: new Date(Date.now() - 2 * 24 * 3600000).toISOString(), items: [{ field: 'status', fromString: 'To Do', toString: 'In Progress' }] },
+              { created: new Date(Date.now() - 1 * 24 * 3600000).toISOString(), items: [{ field: 'status', fromString: 'In Progress', toString: 'Done' }] }
+            ]
+          }
         }
       ]
     }
@@ -32,17 +34,17 @@ describe('telemetry parity and correctness', () => {
   })
 
   it('Velocity aggregation uses sprint issues per sprint', async () => {
-    const sprintIssues = { issues: [ { fields: { status: { statusCategory: { key: 'done' } }, resolutiondate: new Date().toISOString(), customfield_10016: 3 } } ] }
+    const sprintIssues = { issues: [{ fields: { status: { statusCategory: { key: 'done' } }, resolutiondate: new Date().toISOString(), customfield_10016: 3 } }] }
     const requester = async (url: string, options?: any) => {
       if (url.startsWith('/rest/agile/1.0/sprint/')) return mkOk(sprintIssues)
       return mkOk({})
     }
     vi.resetModules()
-    vi.doMock('@forge/api', () => ({ default: { asApp: () => ({ requestJira: requester }) }, route }))
-    vi.doMock('../../src/resolvers/data/JiraDataService', () => ({ JiraDataService: class { async getSprintIssues(){ return sprintIssues.issues } }}))
-    const { MetricCalculator } = await import('../../src/resolvers/metrics/MetricCalculator')
+    vi.doMock('@forge/api', () => ({ default: { asApp: () => ({ requestJira: requester }), asUser: () => ({ requestJira: requester }) }, route }))
+    vi.doMock('../../src/infrastructure/jira/JiraDataService', () => ({ JiraDataService: class { async getSprintIssues() { return sprintIssues.issues } } }))
+    const { MetricCalculator } = await import('../../src/infrastructure/services/legacy/MetricCalculator')
     const calc = new MetricCalculator(new IssueCategorizer(), { statusCategories: { todo: 'new', inProgress: 'indeterminate', done: 'done' }, wipLimit: 8, assigneeCapacity: 3, stalledThresholdHours: 24, storyPointsFieldName: 'Story Points' } as any)
-    const res = await (calc as any).calculateVelocity([{ id: 1, name: 'Sprint 1', startDate: new Date(Date.now()-14*24*3600000).toISOString(), endDate: new Date().toISOString(), state: 'closed' }], [], 'customfield_10016', 'scrum')
+    const res = await (calc as any).calculateVelocity([{ id: 1, name: 'Sprint 1', startDate: new Date(Date.now() - 14 * 24 * 3600000).toISOString(), endDate: new Date().toISOString(), state: 'closed' }], [], 'customfield_10016', 'scrum')
     expect(res.velocity).toBeGreaterThanOrEqual(1)
     expect(res.source).toBe('agile:sprintIssues')
     expect(res.window).toContain('closed sprints')
@@ -57,16 +59,16 @@ describe('telemetry parity and correctness', () => {
     }
     const requester = async (url: string) => mkOk({})
     vi.resetModules()
-    vi.doMock('@forge/api', () => ({ default: { asApp: () => ({ requestJira: requester }) }, route }))
-    vi.doMock('../../src/resolvers/data/JiraDataService', () => ({
+    vi.doMock('@forge/api', () => ({ default: { asApp: () => ({ requestJira: requester }), asUser: () => ({ requestJira: requester }) }, route }))
+    vi.doMock('../../src/infrastructure/jira/JiraDataService', () => ({
       JiraDataService: class {
-        async getSprintIssues(){ return [] }
-        async searchJqlAsApp(){ return { ok: true, issues: jqlIssues.issues } }
+        async getSprintIssues() { return [] }
+        async searchJqlAsApp() { return { ok: true, issues: jqlIssues.issues } }
       }
     }))
-    const { MetricCalculator } = await import('../../src/resolvers/metrics/MetricCalculator')
+    const { MetricCalculator } = await import('../../src/infrastructure/services/legacy/MetricCalculator')
     const calc = new MetricCalculator(new IssueCategorizer(), { statusCategories: { todo: 'new', inProgress: 'indeterminate', done: 'done' }, wipLimit: 8, assigneeCapacity: 3, stalledThresholdHours: 24, storyPointsFieldName: 'Story Points' } as any)
-    const res = await (calc as any).calculateVelocity([{ id: 1, name: 'Sprint 1', startDate: new Date(Date.now()-14*24*3600000).toISOString(), endDate: new Date().toISOString(), state: 'closed' }], [], 'customfield_10016', 'scrum')
+    const res = await (calc as any).calculateVelocity([{ id: 1, name: 'Sprint 1', startDate: new Date(Date.now() - 14 * 24 * 3600000).toISOString(), endDate: new Date().toISOString(), state: 'closed' }], [], 'customfield_10016', 'scrum')
     expect(res.velocity).toBeGreaterThanOrEqual(1)
     expect(res.source).toBe('app:jqlClosedSprints')
   })
@@ -81,7 +83,7 @@ describe('telemetry parity and correctness', () => {
     vi.resetModules()
     vi.doMock('@forge/api', () => ({ default: { asApp: () => ({ requestJira: requester }) }, route }))
     vi.doMock('../../src/resolvers/data/FieldDiscoveryService', () => ({ fieldDiscoveryService: { discoverCustomFields: async () => ({ storyPoints: null }) } }))
-    const { MetricCalculator } = await import('../../src/resolvers/metrics/MetricCalculator')
+    const { MetricCalculator } = await import('../../src/infrastructure/services/legacy/MetricCalculator')
     const calc = new MetricCalculator(new IssueCategorizer(), { statusCategories: { todo: 'new', inProgress: 'indeterminate', done: 'done' }, wipLimit: 8, assigneeCapacity: 3, stalledThresholdHours: 24, storyPointsFieldName: 'Story Points' } as any)
     const telemetry = await calc.calculate({ boardType: 'scrum', boardId: 1, boardName: 'Board', issues } as any)
     expect(telemetry.completion).toBeGreaterThan(0)

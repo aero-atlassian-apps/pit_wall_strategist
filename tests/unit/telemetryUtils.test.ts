@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { detectStalledTickets, DEFAULT_CONFIG, calculateTelemetry } from '../../src/resolvers/telemetryUtils'
+import { LegacyTelemetryAdapter, DEFAULT_CONFIG } from '../../src/infrastructure/services/LegacyTelemetryAdapter'
+
+const detectStalledTickets = LegacyTelemetryAdapter.detectStalledTickets.bind(LegacyTelemetryAdapter)
+const calculateTelemetry = LegacyTelemetryAdapter.calculateTelemetry.bind(LegacyTelemetryAdapter)
 import { mockIssues, mockTelemetry } from '../../src/resolvers/mocks'
 
 const mkIssue = (overrides: any = {}) => ({ key: 'ISSUE-1', fields: { summary: 'Implement API', assignee: { displayName: 'Sarah' }, updated: new Date(Date.now() - 25 * 3600000).toISOString(), priority: { name: 'High' }, status: { name: 'In Progress', statusCategory: { key: 'indeterminate' } }, ...overrides } })
@@ -16,7 +19,7 @@ describe('telemetryUtils', () => {
     const sprintData: any = { boardType: 'scrum', sprintName: 'Sprint', issues: [mkIssue(), mkIssue({ status: { statusCategory: { key: 'new' } } }), mkIssue({ status: { statusCategory: { key: 'done' } } })] }
     const telemetry = await calculateTelemetry(sprintData, DEFAULT_CONFIG)
     expect(telemetry.wipCurrent).toBe(1)
-    expect(telemetry.issuesByStatus.inProgress).toBe(1)
+    expect(telemetry.issuesByStatus?.inProgress).toBe(1)
     expect(['OPTIMAL', 'WARNING', 'CRITICAL']).toContain(telemetry.sprintStatus)
   })
 
@@ -33,6 +36,7 @@ describe('telemetryUtils', () => {
     const mkOk = (payload: any) => ({ ok: true, status: 200, json: async () => payload })
     const mkErr = (status = 403) => ({ ok: false, status, json: async () => ({}) })
     const responses: Record<string, any> = {
+      '/rest/api/3/project/TO': mkOk({ projectTypeKey: 'software' }),
       '/rest/agile/1.0/board?projectKeyOrId=TO': mkOk({ values: [{ id: 34, name: 'TO board', type: 'scrum' }] }),
       '/rest/agile/1.0/board/34/sprint?state=active': mkOk({ values: [{ id: 888, name: 'Sprint 1', state: 'active' }] }),
       '/rest/agile/1.0/sprint/888/issue?maxResults=100': mkOk({ issues: [] }),
@@ -40,14 +44,18 @@ describe('telemetryUtils', () => {
       '/rest/api/3/search?jql=filter%20%3D%20123&maxResults=100&fields=summary,status,assignee,priority,issuetype,updated,created,labels': mkOk({ issues: [mkIssue()] })
     }
     const requester = async (url: string, options?: any) => {
-      if (url === '/rest/api/3/search/jql') return mkOk({ issues: [mkIssue()] })
+      // Handle POST requests (JQL search)
+      if (options?.method === 'POST' && url === '/rest/api/3/search/jql') return mkOk({ issues: [mkIssue()] })
+      // Handle mypermissions for SecurityGuard
+      if (url.includes('/rest/api/3/mypermissions')) return mkOk({ permissions: { BROWSE_PROJECTS: { havePermission: true } } })
       return responses[url] || mkErr(404)
     }
     const api = { asApp: () => ({ requestJira: requester }), asUser: () => ({ requestJira: requester }) }
     vi.resetModules()
     vi.doMock('@forge/api', () => ({ default: api, route }))
-    const { fetchSprintData } = await import('../../src/resolvers/telemetryUtils')
-    const data: any = await fetchSprintData('TO', { ...origDefaultConfig, includeBoardIssuesWhenSprintEmpty: true })
+    const { JiraBoardRepository } = await import('../../src/infrastructure/jira/JiraBoardRepository')
+    const boardRepo = new JiraBoardRepository()
+    const data: any = await boardRepo.getBoardData('TO', { ...origDefaultConfig, includeBoardIssuesWhenSprintEmpty: true })
     expect(data.boardType).toBe('scrum')
     expect(data.sprint?.id).toBe(888)
     expect(Array.isArray(data.issues)).toBe(true)
@@ -60,6 +68,7 @@ describe('telemetryUtils', () => {
     const mkOk = (payload: any) => ({ ok: true, status: 200, json: async () => payload })
     const mkErr = (status = 401) => ({ ok: false, status, json: async () => ({}) })
     const responses: Record<string, any> = {
+      '/rest/api/3/project/TO': mkOk({ projectTypeKey: 'software' }),
       '/rest/agile/1.0/board?projectKeyOrId=TO': mkOk({ values: [{ id: 34, name: 'TO board', type: 'scrum' }] }),
       '/rest/agile/1.0/board/34/sprint?state=active': mkOk({ values: [{ id: 777, name: 'Sprint X', state: 'active' }] }),
       '/rest/agile/1.0/sprint/777/issue?maxResults=100': mkOk({ issues: [] }),
@@ -70,14 +79,18 @@ describe('telemetryUtils', () => {
       '/rest/api/3/search?jql=project%20%3D%20%22TO%22%20ORDER%20BY%20updated%20DESC&maxResults=100&fields=summary,status,assignee,priority,issuetype,updated,created,labels': mkOk({ issues: [mkIssue()] })
     }
     const requester2 = async (url: string, options?: any) => {
-      if (url === '/rest/api/3/search/jql') return mkOk({ issues: [mkIssue()] })
+      // Handle POST requests (JQL search)
+      if (options?.method === 'POST' && url === '/rest/api/3/search/jql') return mkOk({ issues: [mkIssue()] })
+      // Handle mypermissions for SecurityGuard 
+      if (url.includes('/rest/api/3/mypermissions')) return mkOk({ permissions: { BROWSE_PROJECTS: { havePermission: true } } })
       return responses[url] || mkErr(404)
     }
     const api = { asApp: () => ({ requestJira: requester2 }), asUser: () => ({ requestJira: requester2 }) }
     vi.resetModules()
     vi.doMock('@forge/api', () => ({ default: api, route }))
-    const { fetchSprintData } = await import('../../src/resolvers/telemetryUtils')
-    const data: any = await fetchSprintData('TO', { ...origDefaultConfig, includeBoardIssuesWhenSprintEmpty: true })
+    const { JiraBoardRepository } = await import('../../src/infrastructure/jira/JiraBoardRepository')
+    const boardRepo2 = new JiraBoardRepository()
+    const data: any = await boardRepo2.getBoardData('TO', { ...origDefaultConfig, includeBoardIssuesWhenSprintEmpty: true })
     expect(data.boardType).toBe('scrum')
     expect(data.sprint?.id).toBe(777)
     expect(Array.isArray(data.issues)).toBe(true)

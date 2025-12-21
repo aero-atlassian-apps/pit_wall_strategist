@@ -523,12 +523,32 @@ function getHoursInCurrentStatus(issue: JiraIssue): number {
 }
 
 function getDaysInProgress(issue: JiraIssue): number {
-    // Simplified: use updated date as proxy for time in progress
-    const updatedStr = issue.fields.updated
-    if (!updatedStr) return 0
-    const updated = new Date(updatedStr)
+    // Try to find when issue first entered 'In Progress' from changelog
+    const histories = issue.changelog?.histories || []
+    let inProgressStart: number | null = null
+
+    for (const h of histories) {
+        const statusChange = (h.items || []).find((it: any) => it.field === 'status')
+        if (statusChange) {
+            // Check if transition is TO an in-progress status
+            const toStatus = (statusChange.toString || '').toLowerCase()
+            if (toStatus.includes('progress') || toStatus.includes('doing') || toStatus.includes('review') ||
+                toStatus.includes('development') || toStatus.includes('active')) {
+                inProgressStart = new Date(h.created!).getTime()
+                break // Use first in-progress transition
+            }
+        }
+    }
+
+    // Fallback: if no changelog, use created date as proxy
+    if (!inProgressStart) {
+        const createdStr = issue.fields.created
+        if (!createdStr) return 0
+        inProgressStart = new Date(createdStr).getTime()
+    }
+
     const now = new Date()
-    return (now.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24)
+    return (now.getTime() - inProgressStart) / (1000 * 60 * 60 * 24)
 }
 
 function getDaysToComplete(issue: JiraIssue): number {

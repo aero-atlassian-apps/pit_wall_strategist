@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
 import F1Card from '../Common/F1Card'
-import { t } from '../../i18n'
+import { t, tPop } from '../../i18n'
 import { useTour } from '../../context/TourContext'
 
 const SettingsContainer = styled.div`display:flex; flex-direction:column; gap:${({ theme }) => (theme as any).spacing.md}`
@@ -11,15 +11,15 @@ const SettingDescription = styled.p`font-family:${({ theme }) => (theme as any).
 const InputRow = styled.div`display:flex; align-items:center; gap:${({ theme }) => (theme as any).spacing.sm}`
 const NumberInput = styled.input`width:80px; padding:${({ theme }) => (theme as any).spacing.sm}; background:${({ theme }) => (theme as any).colors.bgMain}; border:1px solid ${({ theme }) => (theme as any).colors.border}; border-radius:${({ theme }) => (theme as any).borderRadius.sm}; color:${({ theme }) => (theme as any).colors.textPrimary}; font-family:${({ theme }) => (theme as any).fonts.mono}; font-size:14px; text-align:center; &:focus { outline:none; border-color:${({ theme }) => (theme as any).colors.purpleSector} } &::-webkit-inner-spin-button, &::-webkit-outer-spin-button { opacity: 1 }`
 const InputUnit = styled.span`font-family:${({ theme }) => (theme as any).fonts.mono}; font-size:11px; color:${({ theme }) => (theme as any).colors.textMuted}`
-const BoardTypeIndicator = styled.div<{ $type: 'scrum' | 'kanban' }>`display:flex; align-items:center; gap:${({ theme }) => (theme as any).spacing.sm}; padding:${({ theme }) => (theme as any).spacing.sm} ${({ theme }) => (theme as any).spacing.md}; background:${({ $type, theme }) => ($type === 'kanban' ? `${(theme as any).colors.yellowFlag}22` : `${(theme as any).colors.purpleSector}22`)}; border:1px solid ${({ $type, theme }) => ($type === 'kanban' ? (theme as any).colors.yellowFlag : (theme as any).colors.purpleSector)}; border-radius:${({ theme }) => (theme as any).borderRadius.sm}`
-const BoardTypeBadge = styled.span<{ $type: 'scrum' | 'kanban' }>`font-family:${({ theme }) => (theme as any).fonts.mono}; font-size:11px; font-weight:600; text-transform:uppercase; color:${({ $type, theme }) => ($type === 'kanban' ? (theme as any).colors.yellowFlag : (theme as any).colors.purpleSector)}`
+const BoardTypeIndicator = styled.div<{ $type: 'scrum' | 'kanban' | 'business' }>`display:flex; align-items:center; gap:${({ theme }) => (theme as any).spacing.sm}; padding:${({ theme }) => (theme as any).spacing.sm} ${({ theme }) => (theme as any).spacing.md}; background:${({ $type, theme }) => ($type === 'kanban' ? `${(theme as any).colors.yellowFlag}22` : $type === 'business' ? `${(theme as any).colors.greenPace}22` : `${(theme as any).colors.purpleSector}22`)}; border:1px solid ${({ $type, theme }) => ($type === 'kanban' ? (theme as any).colors.yellowFlag : $type === 'business' ? (theme as any).colors.greenPace : (theme as any).colors.purpleSector)}; border-radius:${({ theme }) => (theme as any).borderRadius.sm}`
+const BoardTypeBadge = styled.span<{ $type: 'scrum' | 'kanban' | 'business' }>`font-family:${({ theme }) => (theme as any).fonts.mono}; font-size:11px; font-weight:600; text-transform:uppercase; color:${({ $type, theme }) => ($type === 'kanban' ? (theme as any).colors.yellowFlag : $type === 'business' ? (theme as any).colors.greenPace : (theme as any).colors.purpleSector)}`
 const SaveButton = styled.button`padding:${({ theme }) => (theme as any).spacing.sm} ${({ theme }) => (theme as any).spacing.lg}; background:${({ theme }) => (theme as any).colors.purpleSector}; border:none; border-radius:${({ theme }) => (theme as any).borderRadius.sm}; color:white; font-family:${({ theme }) => (theme as any).fonts.mono}; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px; cursor:pointer; transition:all ${({ theme }) => (theme as any).transitions.fast}; &:hover { transform: translateY(-1px); box-shadow:${({ theme }) => (theme as any).shadows.glow.purple} } &:disabled { opacity:.5; cursor:not-allowed; transform:none; box-shadow:none }`
 const ResetButton = styled.button`padding:${({ theme }) => (theme as any).spacing.sm} ${({ theme }) => (theme as any).spacing.md}; background:transparent; border:1px solid ${({ theme }) => (theme as any).colors.border}; border-radius:${({ theme }) => (theme as any).borderRadius.sm}; color:${({ theme }) => (theme as any).colors.textMuted}; font-family:${({ theme }) => (theme as any).fonts.mono}; font-size:11px; cursor:pointer; transition:all ${({ theme }) => (theme as any).transitions.fast}; &:hover { border-color:${({ theme }) => (theme as any).colors.textPrimary}; color:${({ theme }) => (theme as any).colors.textPrimary} }`
 const ButtonRow = styled.div`display:flex; gap:${({ theme }) => (theme as any).spacing.md}; margin-top:${({ theme }) => (theme as any).spacing.md}`
 
-const DEFAULT_CONFIG = { wipLimit: 8, assigneeCapacity: 3, stalledThresholdHours: 24, stalledThresholdHoursByType: {} }
+const DEFAULT_CONFIG = { wipLimit: 8, assigneeCapacity: 3, stalledThresholdHours: 24, stalledThresholdHoursByType: {}, theme: 'dark' }
 
-function SettingsPanel({ config = DEFAULT_CONFIG, boardType = 'scrum', boardName = 'Board', onSave, onClose }: { config?: any; boardType?: 'scrum' | 'kanban'; boardName?: string; onSave?: (cfg: any) => void; onClose?: () => void }) {
+function SettingsPanel({ config = DEFAULT_CONFIG, boardType = 'scrum', boardName = 'Board', onSave, onClose }: { config?: any; boardType?: 'scrum' | 'kanban' | 'business'; boardName?: string; onSave?: (cfg: any) => void; onClose?: () => void }) {
   const [localConfig, setLocalConfig] = useState(config)
   const [hasChanges, setHasChanges] = useState(false)
   const [typeRows, setTypeRows] = useState<Array<{ typeName: string; hours: number }>>([])
@@ -28,7 +28,7 @@ function SettingsPanel({ config = DEFAULT_CONFIG, boardType = 'scrum', boardName
   const { resetTour } = useTour()
   useEffect(() => { setLocalConfig(config); const byType = config?.stalledThresholdHoursByType || {}; const rows = Object.keys(byType || {}).map(k => ({ typeName: k, hours: byType[k] })); setTypeRows(rows) }, [config])
   const [hintsError, setHintsError] = useState<string>('')
-  useEffect(() => { ;(async () => { try { const bridge = await import('@forge/bridge'); const details = await bridge.invoke('getDiagnosticsDetails'); const keys = Object.keys(details?.statuses?.byIssueType || {}); setSuggestTypes(keys); const ch = await bridge.invoke('getCycleHints'); if (ch?.success) { setTypeHints(ch.hints || {}); setHintsError('') } else { const code = ch?.code || 'UNKNOWN'; const msg = code === 'PERMISSION_DENIED' ? 'Permission denied while computing hints' : code === 'RATE_LIMITED' ? 'Rate limited while computing hints' : code === 'NO_DATA' ? 'No data available to compute hints' : 'Failed to compute hints'; setHintsError(msg) } } catch (e: any) { setHintsError(e?.message || 'Hints unavailable') } })() }, [])
+  useEffect(() => { ; (async () => { try { const bridge = await import('@forge/bridge'); const details = await bridge.invoke('getDiagnosticsDetails'); const keys = Object.keys(details?.statuses?.byIssueType || {}); setSuggestTypes(keys); const ch = await bridge.invoke('getCycleHints'); if (ch?.success) { setTypeHints(ch.hints || {}); setHintsError('') } else { const code = ch?.code || 'UNKNOWN'; const msg = code === 'PERMISSION_DENIED' ? 'Permission denied while computing hints' : code === 'RATE_LIMITED' ? 'Rate limited while computing hints' : code === 'NO_DATA' ? 'No data available to compute hints' : 'Failed to compute hints'; setHintsError(msg) } } catch (e: any) { setHintsError(e?.message || 'Hints unavailable') } })() }, [])
   const dupeKeys = (() => { const counts: Record<string, number> = {}; typeRows.forEach(r => { const k = (r.typeName || '').trim().toLowerCase(); if (k) counts[k] = (counts[k] || 0) + 1 }); return Object.keys(counts).filter(k => counts[k] > 1) })()
   const isValid = typeRows.every(r => (r.typeName || '').trim().length > 0 && r.hours > 0) && dupeKeys.length === 0
   function handleChange(key: string, value: string) { const numValue = parseInt(value, 10) || 0; setLocalConfig((prev: any) => ({ ...prev, [key]: numValue })); setHasChanges(true) }
@@ -43,24 +43,30 @@ function SettingsPanel({ config = DEFAULT_CONFIG, boardType = 'scrum', boardName
       <SettingsContainer>
         <SettingGroup>
           <SettingLabel>{t('detectedBoard', locale)}</SettingLabel>
-          <BoardTypeIndicator $type={boardType}><span>{boardType === 'kanban' ? '📊' : '🏃'}</span><BoardTypeBadge $type={boardType}>{boardType.toUpperCase()} - {boardName}</BoardTypeBadge></BoardTypeIndicator>
-          <SettingDescription>{boardType === 'kanban' ? t('kanbanModeDesc', locale) : t('scrumModeDesc', locale)}</SettingDescription>
+          <BoardTypeIndicator $type={boardType}>
+            <span>{boardType === 'kanban' ? '📊' : boardType === 'business' ? '💼' : '🏃'}</span>
+            <BoardTypeBadge $type={boardType}>{boardType.toUpperCase()} - {boardName}</BoardTypeBadge>
+          </BoardTypeIndicator>
+          <SettingDescription>
+            {tPop('modeDesc', boardType, locale)}
+          </SettingDescription>
         </SettingGroup>
         <SettingGroup>
-          <SettingLabel>{t('wipLimitLabel', locale)}</SettingLabel>
+          <SettingLabel>{tPop('wipLimitLabel', boardType, locale)}</SettingLabel>
           <SettingDescription>{t('wipLimitDesc', locale)}</SettingDescription>
           <InputRow><NumberInput type="number" min="1" max="50" value={localConfig.wipLimit} onChange={e => handleChange('wipLimit', e.target.value)} /><InputUnit>{t('ticketsUnit', locale)}</InputUnit></InputRow>
         </SettingGroup>
         <SettingGroup>
-          <SettingLabel>{t('assigneeCapacityLabel', locale)}</SettingLabel>
+          <SettingLabel>{tPop('assigneeCapacityLabel', boardType, locale)}</SettingLabel>
           <SettingDescription>{t('assigneeCapacityDesc', locale)}</SettingDescription>
           <InputRow><NumberInput type="number" min="1" max="20" value={localConfig.assigneeCapacity} onChange={e => handleChange('assigneeCapacity', e.target.value)} /><InputUnit>{t('ticketsPerPersonUnit', locale)}</InputUnit></InputRow>
         </SettingGroup>
         <SettingGroup>
-          <SettingLabel>{t('stalledThresholdLabel', locale)}</SettingLabel>
+          <SettingLabel>{tPop('stalledThresholdLabel', boardType, locale)}</SettingLabel>
           <SettingDescription>{t('stalledThresholdDesc', locale)}</SettingDescription>
           <InputRow><NumberInput type="number" min="1" max="168" title={t('recommendedRange', locale)} value={localConfig.stalledThresholdHours} onChange={e => handleChange('stalledThresholdHours', e.target.value)} /><InputUnit>{t('hoursUnit', locale)}</InputUnit></InputRow>
         </SettingGroup>
+
         <SettingGroup>
           <SettingLabel>{t('language', locale)}</SettingLabel>
           <SettingDescription>{t('languageDesc', locale)}</SettingDescription>
@@ -70,6 +76,16 @@ function SettingsPanel({ config = DEFAULT_CONFIG, boardType = 'scrum', boardName
               <option value="fr">Français</option>
               <option value="es">Español</option>
               <option value="pt">Português</option>
+            </select>
+          </InputRow>
+        </SettingGroup>
+        <SettingGroup>
+          <SettingLabel>Theme</SettingLabel>
+          <SettingDescription>Choose your cockpit appearance.</SettingDescription>
+          <InputRow>
+            <select value={localConfig.theme || 'dark'} onChange={e => { setLocalConfig((prev: any) => ({ ...prev, theme: e.target.value })); setHasChanges(true) }} style={{ padding: '6px 8px', background: 'var(--bg-main, #0b1221)', border: '1px solid #334155', borderRadius: '6px', color: '#cbd5e1', fontFamily: 'monospace', fontSize: '12px' }}>
+              <option value="dark">🏎️ Night Race (Dark)</option>
+              <option value="light">☀️ Day Race (Light)</option>
             </select>
           </InputRow>
         </SettingGroup>

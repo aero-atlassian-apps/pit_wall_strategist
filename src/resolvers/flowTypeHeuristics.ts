@@ -55,12 +55,12 @@ const FLOW_TYPE_PATTERNS: Record<FlowCategory, RegExp[]> = {
 }
 
 // F1 Theme names for each flow category
-export const FLOW_CATEGORY_F1_NAMES: Record<FlowCategory, { name: string; emoji: string; color: string }> = {
-    features: { name: 'New Aero', emoji: '🚀', color: '#39FF14' },       // Green - power
-    defects: { name: 'Repairs', emoji: '🔧', color: '#FF0033' },         // Red - problems
-    risks: { name: 'R&D', emoji: '🔬', color: '#BF5AF2' },               // Purple - research
-    debt: { name: 'Maintenance', emoji: '⚙️', color: '#F4D03F' },        // Yellow - caution
-    other: { name: 'Misc', emoji: '📦', color: '#888888' }               // Gray - neutral
+export const FLOW_CATEGORY_F1_NAMES: Record<FlowCategory, { name: string; color: string }> = {
+    features: { name: 'New Aero', color: '#39FF14' },       // Green - power
+    defects: { name: 'Repairs', color: '#FF0033' },         // Red - problems
+    risks: { name: 'R&D', color: '#BF5AF2' },               // Purple - research
+    debt: { name: 'Maintenance', color: '#F4D03F' },        // Yellow - caution
+    other: { name: 'Support', color: '#888888' }            // Gray - neutral
 }
 
 /**

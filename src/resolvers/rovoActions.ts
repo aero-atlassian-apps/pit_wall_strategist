@@ -1,6 +1,8 @@
 import api, { route } from '@forge/api'
 import { mockActionResult } from './mocks'
-import { discoverCustomFields } from './telemetryUtils'
+import { LegacyTelemetryAdapter } from '../infrastructure/services/LegacyTelemetryAdapter'
+import { getProjectContext } from './contextEngine'
+
 const PLATFORM = process.env.PLATFORM || 'atlassian'
 
 /**
@@ -12,6 +14,21 @@ const PLATFORM = process.env.PLATFORM || 'atlassian'
  * - This prevents unauthorized modifications by the app on behalf of users.
  */
 
+// Helper to get allowed values for a field
+async function getFieldAllowedValues(issueKey: string, fieldId: string): Promise<any[]> {
+  try {
+    const response = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/editmeta`, { headers: { Accept: 'application/json' } });
+    if (response.ok) {
+      const data = await response.json();
+      const fieldMeta = data.fields?.[fieldId];
+      return fieldMeta?.allowedValues || [];
+    }
+  } catch (e) {
+    console.warn('Failed to fetch editmeta:', e);
+  }
+  return [];
+}
+
 /**
  * SPLIT TICKET
  * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-post
@@ -19,18 +36,45 @@ const PLATFORM = process.env.PLATFORM || 'atlassian'
  */
 export async function splitTicket({ issueKey, subtasks }: { issueKey: string; subtasks?: Array<{ summary: string }> }) {
   if (PLATFORM === 'local') { return mockActionResult('split') }
+
   const parentIssue = await getIssue(issueKey)
   const projectKey = parentIssue.fields.project.key
+
+  // Agnostic: Discover Sub-task issue type name
+  const context = await getProjectContext(projectKey);
+  // Default to 'Sub-task' if nothing found (fallback), but try to use discovered name
+  // The context.issueTypes has hierarchyLevel. We want level 2 or subtask: true.
+  const subtaskType = context.issueTypes.find(t => t.subtask || t.hierarchyLevel === 2) || { name: 'Sub-task' };
+
   const tasksToCreate = subtasks || [
     { summary: `[Spike] Research and clarify requirements for ${issueKey}` },
     { summary: `[Implementation] Core functionality for ${issueKey}` },
     { summary: `[Testing] Write tests for ${issueKey}` }
   ]
+
   const createdSubtasks: string[] = []
+
   for (const task of tasksToCreate) {
-    const response = await api.asUser().requestJira(route`/rest/api/3/issue`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { project: { key: projectKey }, parent: { key: issueKey }, summary: task.summary, issuetype: { name: 'Sub-task' }, assignee: parentIssue.fields.assignee } }) })
-    if (response.ok) { const created = await response.json(); createdSubtasks.push(created.key) }
+    const response = await api.asUser().requestJira(route`/rest/api/3/issue`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          project: { key: projectKey },
+          parent: { key: issueKey },
+          summary: task.summary,
+          issuetype: { name: subtaskType.name }, // Use dynamic name
+          assignee: parentIssue.fields.assignee
+        }
+      })
+    })
+
+    if (response.ok) {
+      const created = await response.json();
+      createdSubtasks.push(created.key)
+    }
   }
+
   await addComment(issueKey, `🏎️ *PIT WALL STRATEGY: THE UNDERCUT*\n\nRace Engineer split this ticket into ${createdSubtasks.length} subtasks for faster sector times:\n${createdSubtasks.map(k => `• ${k}`).join('\n')}\n\n_Strategy executed via Pit Wall Strategist_`)
   return { success: true, message: `Split into ${createdSubtasks.length} subtasks`, subtasks: createdSubtasks }
 }
@@ -62,7 +106,10 @@ export async function deferTicket({ issueKey }: { issueKey: string }) {
   const transitionsResponse = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { headers: { Accept: 'application/json' } })
   const transitionsData = await transitionsResponse.json()
   const list = (transitionsData?.transitions || [])
-  const backlogTransition = list.find((t: any) => (t?.to?.statusCategory?.key || '').toLowerCase() === 'new') || list.find((t: any) => t.name?.toLowerCase?.().includes('backlog') || t.name?.toLowerCase?.().includes('to do'))
+
+  // Agnostic: Look for status category 'new' (To Do)
+  const backlogTransition = list.find((t: any) => (t?.to?.statusCategory?.key || '').toLowerCase() === 'new') ||
+    list.find((t: any) => t.name?.toLowerCase?.().includes('backlog') || t.name?.toLowerCase?.().includes('to do'))
 
   if (backlogTransition) {
     await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ transition: { id: backlogTransition.id } }) })
@@ -70,18 +117,22 @@ export async function deferTicket({ issueKey }: { issueKey: string }) {
 
   // 2. Remove from active sprint (Clear Sprint Field)
   try {
-    const fieldsCache = await discoverCustomFields()
+    const fieldsCache = await LegacyTelemetryAdapter.discoverCustomFields()
     const sprintField = fieldsCache.sprint
     if (sprintField) {
-      await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, {
-        method: 'PUT',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields: { [sprintField]: null } })
-      })
+      // Check if field is present on issue before trying to clear it (avoid 400 on Kanban)
+      const issue = await getIssue(issueKey);
+      if (issue.fields[sprintField]) {
+        await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, {
+          method: 'PUT',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: { [sprintField]: null } })
+        })
+      }
     }
   } catch (e) { console.warn('Failed to clear sprint field:', e) }
 
-  await addComment(issueKey, `🏎️ *PIT WALL STRATEGY: RETIRE CAR*\n\nRace Engineer has moved this ticket to the backlog to save resources for next sprint.\n\n_"Box confirmed. Saving the engine for the next race."_\n\n_Strategy executed via Pit Wall Strategist_`)
+  await addComment(issueKey, `🏎️ *PIT WALL STRATEGY: RETIRE CAR*\n\nRace Engineer has moved this ticket to the backlog/to-do to save resources for next sprint.\n\n_"Box confirmed. Saving the engine for the next race."_\n\n_Strategy executed via Pit Wall Strategist_`)
   return { success: true, message: 'Moved to backlog' }
 }
 
@@ -112,9 +163,19 @@ export async function transitionIssue({ issueKey, transitionId, transitionName }
   const transitionsResponse = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { headers: { Accept: 'application/json' } })
   const transitionsData = await transitionsResponse.json()
   const list = (transitionsData?.transitions || [])
-  let target = transitionId ? list.find((t: any) => t.id === transitionId) : list.find((t: any) => t.name?.toLowerCase() === (transitionName || '').toLowerCase())
-  if (!target && list.length > 0) target = list[0] // Default to first available
+
+  // Agnostic: Try to match by ID, then strict name, then loose name
+  let target = transitionId ? list.find((t: any) => t.id === transitionId) : undefined;
+  if (!target && transitionName) {
+    target = list.find((t: any) => t.name?.toLowerCase() === transitionName.toLowerCase());
+  }
+  // Fallback: If no specific transition requested, look for "In Progress" or next "Indeterminate"
+  if (!target && !transitionId && !transitionName) {
+    target = list.find((t: any) => t.to?.statusCategory?.key === 'indeterminate') || list[0];
+  }
+
   if (!target) throw new Error('No available transitions')
+
   await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ transition: { id: target.id } }) })
   await addComment(issueKey, `🏎️ *PIT WALL STRATEGY: PUSH TO THE LIMIT*\n\nTransitioned to *${target.name}*. Full throttle!\n\n_Strategy executed via Pit Wall Strategist_`)
   return { success: true, message: `Transitioned to ${target.name}` }
@@ -138,19 +199,27 @@ export async function addBlockerFlag({ issueKey, reason }: { issueKey: string; r
     })
   }
 
-  // 2. Set "Flagged" field to "Impediment" if available
+  // 2. Set "Flagged" field to "Impediment" OR whatever valid option is available
   try {
-    const fields = await discoverCustomFields()
+    const fields = await LegacyTelemetryAdapter.discoverCustomFields()
     if (fields.flagged) {
-      await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, {
-        method: 'PUT',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields: { [fields.flagged]: [{ value: 'Impediment' }] } })
-      })
+      // Agnostic: Discovery allowed values via editmeta
+      const allowedValues = await getFieldAllowedValues(issueKey, fields.flagged);
+      // Look for 'Impediment' or anything that looks like a flag/blocker
+      const impedimentOption = allowedValues.find(v => v.value === 'Impediment') ||
+        allowedValues.find(v => v.value.toLowerCase().includes('block')) ||
+        allowedValues[0]; // Fallback to first option if exists
+
+      if (impedimentOption) {
+        await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, {
+          method: 'PUT',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: { [fields.flagged]: [{ value: impedimentOption.value }] } })
+        })
+      }
     }
   } catch (e) {
-    console.warn('Failed to set Flagged field (Impediment option may not exist):', e)
-    // Continue - non-fatal
+    console.warn('Failed to set Flagged field:', e)
   }
 
   await addComment(issueKey, `🏎️ *PIT WALL STRATEGY: RED FLAG*\n\n⚠️ This issue is now FLAGGED as blocked.\nReason: ${reason || 'Awaiting resolution'}\n\n_Strategy executed via Pit Wall Strategist_`)
@@ -164,6 +233,9 @@ export async function addBlockerFlag({ issueKey, reason }: { issueKey: string; r
 export async function linkIssues({ issueKey, linkedIssueKey, linkType }: { issueKey: string; linkedIssueKey: string; linkType?: string }) {
   if (PLATFORM === 'local') { return mockActionResult('link') }
   const type = linkType || 'Relates'
+  // Note: Link types are also configurable, but 'Relates' is a standard system type usually present.
+  // Checking for link type existence would be even more robust, but 'Relates' is very safe.
+
   await api.asUser().requestJira(route`/rest/api/3/issueLink`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -188,9 +260,11 @@ export async function updateEstimate({ issueKey, storyPoints, timeEstimate }: { 
 
   // Dynamic Story Points Field
   if (storyPoints !== undefined) {
-    const fieldsCache = await discoverCustomFields()
-    const spField = fieldsCache.storyPoints || 'customfield_10016'
-    fields[spField] = storyPoints
+    const fieldsCache = await LegacyTelemetryAdapter.discoverCustomFields()
+    const spField = fieldsCache.storyPoints // || 'customfield_10016' -> Removed default fallback to enforce successful discovery
+    if (spField) {
+      fields[spField] = storyPoints
+    }
   }
 
   if (timeEstimate) fields.timeoriginalestimate = timeEstimate
@@ -222,11 +296,16 @@ export async function createSubtask({ issueKey, summary, assignee }: { issueKey:
   if (PLATFORM === 'local') { return mockActionResult('subtask') }
   const parentIssue = await getIssue(issueKey)
   const projectKey = parentIssue.fields.project.key
+
+  // Agnostic: Discover Sub-task issue type name
+  const context = await getProjectContext(projectKey);
+  const subtaskType = context.issueTypes.find(t => t.subtask || t.hierarchyLevel === 2) || { name: 'Sub-task' };
+
   const fields: any = {
     project: { key: projectKey },
     parent: { key: issueKey },
     summary: summary,
-    issuetype: { name: 'Sub-task' }
+    issuetype: { name: subtaskType.name }
   }
   if (assignee) fields.assignee = { accountId: assignee }
   const response = await api.asUser().requestJira(route`/rest/api/3/issue`, {
@@ -244,7 +323,6 @@ export async function createSubtask({ issueKey, summary, assignee }: { issueKey:
 
 async function getIssue(issueKey: string) { const response = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, { headers: { Accept: 'application/json' } }); if (!response.ok) throw new Error(`Failed to get issue: ${response.status}`); return response.json() }
 async function addComment(issueKey: string, body: string) { await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/comment`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ body: { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text: body }] }] } }) }) }
-async function removeFromSprint(issueKey: string) { const issue = await getIssue(issueKey); const sprintField = issue?.fields?.customfield_10020; if (sprintField && sprintField.length > 0) { const sprintId = sprintField[0]?.id; if (sprintId) { await api.asUser().requestJira(route`/rest/agile/1.0/sprint/${sprintId}/issue`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ issues: [issueKey] }) }) } } }
 
 // ============ ACTION ROUTER ============
 
@@ -263,4 +341,3 @@ export async function handleAction(actionKey: string, payload: any) {
     default: throw new Error(`Unknown action: ${actionKey}`)
   }
 }
-
