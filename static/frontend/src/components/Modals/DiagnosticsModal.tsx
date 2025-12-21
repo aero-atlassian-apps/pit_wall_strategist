@@ -38,7 +38,7 @@ export default function DiagnosticsModal({ open, onClose, health }: Props) {
           {diag && !diag.userBrowse && diag.appBrowse && (
             <KV>
               <K>{t('status', locale)}</K>
-              <V>{'Viewing with app access; your user lacks Browse Projects'}</V>
+              <V style={{ color: 'var(--color-warning)' }}>{'User lacks "Browse Projects" permission. Using App Access.'}</V>
             </KV>
           )}
           <Section>
@@ -87,31 +87,31 @@ const fadeIn = keyframes`from{opacity:0}to{opacity:1}`
 const slideUp = keyframes`from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}`
 
 const Overlay = styled.div`
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px);
+  position: fixed; inset: 0; background: var(--bg-glass); backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; z-index: 1000;
   animation: ${fadeIn} 0.2s ease-out;
 `
 
 const Modal = styled.div`
   width: 600px; max-width: 90vw; max-height: 90vh; overflow-y: auto;
-  background: ${({ theme }) => (theme as any).colors.bgCard};
-  border: 1px solid ${({ theme }) => (theme as any).colors.border};
-  border-radius: ${({ theme }) => (theme as any).borderRadius.lg};
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-app);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
   display: flex; flex-direction: column;
   animation: ${slideUp} 0.3s ease-out;
 `
 
 const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between; padding: 16px 20px;
-  border-bottom: 1px solid ${({ theme }) => (theme as any).colors.border};
-  background: rgba(0,0,0,0.2);
+  border-bottom: 1px solid var(--border-app);
+  background: var(--bg-surface-subtle);
 `
 
 const Title = styled.div`
-  font-family: ${({ theme }) => (theme as any).fonts.mono};
+  font-family: var(--font-stack-mono);
   font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;
-  color: ${({ theme }) => (theme as any).colors.textPrimary};
+  color: var(--text-primary);
 `
 
 const Body = styled.div`
@@ -125,7 +125,7 @@ const Section = styled.div`
 
 const SectionTitle = styled.div`
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
-  color: ${({ theme }) => (theme as any).colors.purpleSector};
+  color: var(--chart-2);
   margin-bottom: 4px;
 `
 
@@ -134,12 +134,12 @@ const KV = styled.div`
 `
 
 const K = styled.div`
-  font-size: 12px; color: ${({ theme }) => (theme as any).colors.textMuted}; min-width: 100px;
+  font-size: 12px; color: var(--text-muted); min-width: 100px;
 `
 
 const V = styled.div<{ $good?: boolean }>`
-  font-size: 12px; font-family: ${({ theme }) => (theme as any).fonts.mono};
-  color: ${({ theme, $good }) => $good === true ? (theme as any).colors.greenPace : $good === false ? (theme as any).colors.redAlert : (theme as any).colors.textPrimary};
+  font-size: 12px; font-family: var(--font-stack-mono);
+  color: ${({ $good }) => $good === true ? 'var(--color-success)' : $good === false ? 'var(--color-danger)' : 'var(--text-primary)'};
   text-align: right;
   word-break: break-all;
   
@@ -149,12 +149,13 @@ const V = styled.div<{ $good?: boolean }>`
 `
 
 const Divider = styled.div`
-  height: 1px; background: ${({ theme }) => (theme as any).colors.border}; opacity: 0.5;
+  height: 1px; background: var(--border-app); opacity: 0.5;
 `
 
 const Footer = styled.div`
-  padding: 16px 20px; border-top: 1px solid ${({ theme }) => (theme as any).colors.border};
+  padding: 16px 20px; border-top: 1px solid var(--border-app);
   display: flex; justify-content: flex-end;
-  background: rgba(0,0,0,0.2);
+  gap: 12px;
+  background: var(--bg-surface-subtle);
 `
 import { t } from '../../i18n'

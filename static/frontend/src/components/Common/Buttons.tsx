@@ -29,34 +29,43 @@ export const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'dang
     switch ($variant) {
       case 'primary':
         return css`
-          background: ${t.colors.greenPace};
-          color: #000;
-          border-color: ${t.colors.greenPace};
+          background: var(--color-success);
+          color: var(--color-black);
+          border-color: var(--color-success);
           &:hover:not(:disabled) {
-            background: #2ecc71;
-            box-shadow: 0 0 10px rgba(57, 255, 20, 0.4);
+            background: var(--color-success-hover);
+            box-shadow: var(--shadow-glow);
+          }
+          &:focus-visible {
+            box-shadow: 0 0 0 2px var(--bg-app), 0 0 0 4px var(--color-success);
           }
         `
       case 'danger':
         return css`
-          background: rgba(255, 0, 51, 0.1);
-          color: ${t.colors.redAlert};
-          border-color: ${t.colors.redAlert};
+          background: var(--bg-danger-subtle);
+          color: var(--color-danger);
+          border-color: var(--color-danger);
           &:hover:not(:disabled) {
-            background: ${t.colors.redAlert};
-            color: #fff;
-            box-shadow: 0 0 10px rgba(255, 0, 51, 0.4);
+            background: var(--color-danger);
+            color: var(--color-white);
+            box-shadow: var(--shadow-glow);
+          }
+          &:focus-visible {
+            box-shadow: 0 0 0 2px var(--bg-app), 0 0 0 4px var(--color-danger);
           }
         `
       case 'secondary':
       default:
         return css`
-          background: ${t.colors.bgCard};
-          color: ${t.colors.textPrimary};
-          border-color: ${t.colors.border};
+          background: var(--bg-card);
+          color: var(--text-primary);
+          border-color: var(--border);
           &:hover:not(:disabled) {
-            background: ${t.colors.bgCardHover};
-            border-color: ${t.colors.textMuted};
+            background: var(--bg-card-hover);
+            border-color: var(--text-muted);
+          }
+          &:focus-visible {
+            box-shadow: 0 0 0 2px var(--bg-app), 0 0 0 4px var(--border-focus);
           }
         `
     }
@@ -65,15 +74,21 @@ export const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'dang
 
 const IconButtonStyled = styled.button<{ $size?: 'sm' | 'md' }>`
   ${ButtonBase}
-  width: ${({ $size }) => ($size === 'sm' ? '24px' : '32px')};
-  height: ${({ $size }) => ($size === 'sm' ? '24px' : '32px')};
+  width: ${({ $size }) => ($size === 'sm' ? '28px' : '36px')}; /* Polished: Larger touch target */
+  height: ${({ $size }) => ($size === 'sm' ? '28px' : '36px')};
   border-radius: ${({ theme }) => (theme as any).borderRadius.sm};
   background: transparent;
-  color: ${({ theme }) => (theme as any).colors.textMuted};
+  color: var(--text-muted);
   
   &:hover:not(:disabled) {
-    background: ${({ theme }) => (theme as any).colors.bgCardHover};
-    color: ${({ theme }) => (theme as any).colors.textPrimary};
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+  }
+
+  &:focus-visible {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 2px var(--border-focus);
   }
 `
 
