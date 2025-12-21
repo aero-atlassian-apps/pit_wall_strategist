@@ -2,16 +2,18 @@ import React from 'react'
 import styled from 'styled-components'
 
 interface PanelProps {
-    title: string
-    rightAction?: React.ReactNode
-    children: React.ReactNode
-    className?: string
-    loading?: boolean
-    error?: string
+  title: string
+  rightAction?: React.ReactNode
+  children: React.ReactNode
+  className?: string
+  loading?: boolean
+  error?: string
 }
 
 const PanelContainer = styled.section`
   background: var(--bg-panel);
+  backdrop-filter: blur(12px); /* Glass effect */
+  -webkit-backdrop-filter: blur(12px);
   border-radius: 8px; /* Do not use theme object if possible, rely on var */
   border: 1px solid var(--border);
   display: flex;
@@ -76,22 +78,22 @@ const ErrorState = styled.div`
 `
 
 export const Panel: React.FC<PanelProps> = ({ title, rightAction, children, className, loading, error }) => {
-    return (
-        <PanelContainer className={className}>
-            <PanelHeader>
-                <PanelTitle>{title}</PanelTitle>
-                {rightAction && <div>{rightAction}</div>}
-            </PanelHeader>
-            <PanelContent>
-                {error ? (
-                    <ErrorState>
-                        ⚠️ {error}
-                    </ErrorState>
-                ) : (
-                    children
-                )}
-                {loading && <LoadingOverlay>INITIALIZING...</LoadingOverlay>}
-            </PanelContent>
-        </PanelContainer>
-    )
+  return (
+    <PanelContainer className={className}>
+      <PanelHeader>
+        <PanelTitle>{title}</PanelTitle>
+        {rightAction && <div>{rightAction}</div>}
+      </PanelHeader>
+      <PanelContent>
+        {error ? (
+          <ErrorState>
+            ⚠️ {error}
+          </ErrorState>
+        ) : (
+          children
+        )}
+        {loading && <LoadingOverlay>INITIALIZING...</LoadingOverlay>}
+      </PanelContent>
+    </PanelContainer>
+  )
 }

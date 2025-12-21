@@ -1,0 +1,114 @@
+/* 
+  Pit Wall Strategist - Design Tokens 
+  Strict CSP Compliance: No external fonts/images.
+*/
+
+:root {
+  /* =========================================
+     PRIMITIVE PALETTE (F1 DNA)
+     ========================================= */
+  --color-red-500: #F42A40;
+  /* Flag Red */
+  --color-red-600: #D11E32;
+  --color-green-400: #4ADE80;
+  /* Go / Optimal */
+  --color-green-500: #22c55e;
+  --color-yellow-400: #FACC15;
+  /* Caution */
+  --color-yellow-500: #eab308;
+  --color-slate-50: #F8FAFC;
+  --color-slate-100: #F1F5F9;
+  --color-slate-200: #E2E8F0;
+  --color-slate-300: #CBD5E1;
+  --color-slate-400: #94A3B8;
+  --color-slate-500: #64748B;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1E293B;
+  --color-slate-900: #0F172A;
+  --color-slate-950: #020617;
+  --color-white: #FFFFFF;
+  --color-black: #000000;
+
+  /* =========================================
+     SEMANTIC THEME: LIGHT (Factory Mode)
+     ========================================= */
+  --bg-app: var(--color-slate-50);
+  --bg-surface: var(--color-white);
+  --bg-surface-subtle: var(--color-slate-50);
+  --bg-surface-hover: var(--color-slate-100);
+  --bg-glass: rgba(255, 255, 255, 0.9);
+  --bg-panel: var(--bg-surface);
+  /* Solid in light mode for readability */
+  --bg-main: var(--bg-surface-subtle);
+  /* Main background for internal components */
+
+  --border-app: var(--color-slate-200);
+  --border-subtle: var(--color-slate-100);
+  --border-focus: var(--color-slate-400);
+
+  --text-primary: var(--color-slate-800);
+  --text-secondary: var(--color-slate-500);
+  --text-tertiary: var(--color-slate-400);
+  --text-inverse: var(--color-white);
+
+  --brand-primary: var(--color-red-500);
+  --brand-secondary: var(--color-slate-800);
+
+  --status-success: var(--color-green-500);
+  --status-warning: var(--color-yellow-500);
+  --status-critical: var(--color-red-500);
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-glow: 0 0 0 transparent;
+
+  /* Spacing Scale (4px Grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+}
+
+/* =========================================
+   SEMANTIC THEME: DARK (Night Race Mode)
+   ========================================= */
+[data-theme='dark'] {
+  --bg-app: var(--color-slate-950);
+  --bg-surface: var(--color-slate-900);
+  --bg-surface-subtle: var(--color-slate-800);
+  --bg-surface-hover: var(--color-slate-800);
+  --bg-glass: rgba(15, 23, 42, 0.85);
+  /* Slate 900 with Alpha */
+  --bg-panel: var(--bg-glass);
+  /* Glass in dark mode for F1 vibe */
+  --bg-main: var(--bg-surface-subtle);
+  /* Main background for internal components */
+
+  --border-app: var(--color-slate-700);
+  --border-subtle: var(--color-slate-800);
+  --border-focus: var(--color-slate-600);
+
+  --text-primary: var(--color-slate-50);
+  --text-secondary: var(--color-slate-400);
+  --text-tertiary: var(--color-slate-500);
+
+  --status-success: var(--color-green-400);
+  --status-warning: var(--color-yellow-400);
+  --status-critical: var(--color-red-500);
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
+  --shadow-glow: 0 0 15px rgba(244, 42, 64, 0.15);
+  /* Subtle Red Glow */
+}

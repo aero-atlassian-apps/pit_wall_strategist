@@ -3,6 +3,7 @@ import styled from 'styled-components'
 import DashboardLayout from './components/Dashboard/DashboardLayout'
 import LiveCircuit from './components/Dashboard/LiveCircuit'
 import StrategyAssistant from './components/Dashboard/StrategyAssistant'
+import { DashboardView } from './components/NextGen/Dashboard/DashboardView' // NextGen Import
 import TelemetryDeck from './components/Dashboard/TelemetryDeck'
 import SprintHealthGauge from './components/Dashboard/SprintHealthGauge'
 import PredictiveAlertsPanel from './components/Dashboard/PredictiveAlertsPanel'
@@ -26,9 +27,10 @@ const AppContainer = styled.div`
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: var(--bg-main);
+  background-color: var(--bg-app);
   color: var(--text-primary);
   overflow: hidden;
+  font-family: var(--font-stack-body);
 `
 
 const Header = styled.header`
@@ -37,9 +39,10 @@ const Header = styled.header`
   align-items: center;
   height: 56px;
   padding: 0 24px;
-  background-color: var(--bg-panel); /* Pit wall darker header */
-  border-bottom: 1px solid var(--border);
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-app);
   flex-shrink: 0;
+  transition: all 0.3s ease;
 `
 
 const Logo = styled.div`
@@ -332,69 +335,16 @@ function InnerApp() {
           }} onClose={() => setSettingsOpen(false)} />
         </SettingsOverlay>
       ) : (
-        <DashboardLayout>
-          <TelemetryColumn>
-            <TelemetryDeck
-              telemetryData={telemetryData}
-              timingMetrics={timingMetrics}
-              trendData={trendData}
-              boardType={boardType}
-              projectContext={projectContext}
-              onRefresh={refreshTelemetry}
-            />
-
-            {/* P0 Intelligence Features - Conditional on board type */}
-            {boardType === 'scrum' && (
-              <SprintHealthGauge
-                sprintHealth={advancedAnalytics?.sprintHealth}
-                loading={!advancedAnalytics}
-              />
-            )}
-          </TelemetryColumn>
-
-          <div data-tour="track" style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '16px' }}>
-            <div style={{ flex: '1 1 auto', minHeight: 0 }}>
-              {issues && issues.length > 0 ? (
-                <LiveCircuit issues={issues} columns={boardColumns} locale={locale} />
-              ) : (
-                <EmptyState
-                  title={error ? t('connectionLost', locale) : (boardType === 'scrum' ? t('noSprintIssues', locale) : t('noBoardIssues', locale))}
-                  description={error ? `${t('error', locale)}: ${error}` : t('emptyStateDesc', locale)}
-                />
-              )}
-            </div>
-            {/* Predictive Risks - now under the circuit */}
-            <PredictiveAlertsPanel
-              preStallWarnings={advancedAnalytics?.preStallWarnings || []}
-              bottleneck={advancedAnalytics?.bottleneck}
-              loading={!advancedAnalytics}
-              onIssueClick={(key) => {
-                const issue = issues.find(i => i.key === key)
-                if (issue) { setSelectedTicket(issue); setModalOpen(true) }
-              }}
-            />
-          </div>
-
-          <RaceControlColumn>
-            <StrategyAssistant
-              feed={telemetryData?.feed || []}
-              alertActive={telemetryData?.alertActive || false}
-              onBoxBox={handleBoxBox}
-              onRefresh={refreshAll}
-              boardType={boardType}
-              projectContext={projectContext}
-              issues={issues}
-              telemetryData={telemetryData}
-            />
-            {/* Systems Status Strip */}
-            <div style={{ marginTop: 'auto', paddingTop: 8, borderTop: '1px solid #334155' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#94A3B8', fontFamily: 'monospace' }}>
-                <span>{t('systems', locale)}: {healthData?.platform ? t('online', locale) : t('checking', locale)}</span>
-                <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setDiagnosticsOpen(true)}>{t('diagnostics', locale)}</span>
-              </div>
-            </div>
-          </RaceControlColumn>
-        </DashboardLayout>
+        <DashboardView
+          telemetryData={telemetryData}
+          timingMetrics={timingMetrics}
+          trendData={trendData}
+          issues={issues}
+          boardType={boardType}
+          locale={locale}
+          refreshAll={refreshAll}
+          handleStrategyAction={(id) => handleStrategyAction('resolve', { key: id })} // Simplified adapter
+        />
       )}
       {modalOpen && selectedTicket && (
         <StrategyModal

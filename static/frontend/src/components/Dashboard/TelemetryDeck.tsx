@@ -141,7 +141,6 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
     const isFlow = effectiveBoardType === 'kanban'
     const isProcess = effectiveBoardType === 'business'
 
-    // Refactor logic from old component
     const getWipColor = (load: number) => {
         if (load >= 100) return 'var(--color-danger)'
         if (load >= 80) return 'var(--color-warning)'
@@ -181,117 +180,106 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
 
     return (
         <Panel title={tPop('telemetryTitle', populationMode, locale)} rightAction={HeaderActions} className="telemetry-panel">
-
-            {/* KPI Grid */}
-            <Grid2 style={{ marginTop: 16 }}>
-                {isScrum && (
-                    <>
-                        <KPIBox>
-                            <KPIValue>{telemetryData?.velocity ?? '-'}</KPIValue>
-                            <KPILabel>{telemetryData?.velocityWindow ? `${tPop('progressMetric', 'scrum', locale)} (${telemetryData.velocityWindow})` : tPop('progressMetric', 'scrum', locale)}</KPILabel>
-                        </KPIBox>
-                        <KPIBox>
-                            <KPIValue>{telemetryData?.completion || 0}%</KPIValue>
-                            <KPILabel>{tPop('completion', 'scrum', locale)}</KPILabel>
-                        </KPIBox>
-                    </>
-                )}
-                {isFlow && (
-                    <>
-                        <KPIBox>
-                            <KPIValue>{telemetryData?.cycleTime ? `${telemetryData.cycleTime}h` : '-'}</KPIValue>
-                            <KPILabel>{tPop('timeMetric', 'flow', locale)}</KPILabel>
-                        </KPIBox>
-                        <KPIBox>
-                            <KPIValue>{telemetryData?.throughput ?? '-'}</KPIValue>
-                            <KPILabel>{tPop('progressMetric', 'flow', locale)}</KPILabel>
-                        </KPIBox>
-                    </>
-                )}
-                {isProcess && (
-                    <>
-                        <KPIBox>
-                            <KPIValue>{telemetryData?.cycleTime ? `${telemetryData.cycleTime}h` : '-'}</KPIValue>
-                            <KPILabel>{tPop('timeMetric', 'process', locale)}</KPILabel>
-                        </KPIBox>
-                        <KPIBox>
-                            <KPIValue>{telemetryData?.throughput ?? '-'}</KPIValue>
-                            <KPILabel>{tPop('progressMetric', 'process', locale)}</KPILabel>
-                        </KPIBox>
-                    </>
-                )}
-            </Grid2>
-
-            {/* Tabs */}
-            <TabContainer>
-                <Tab $active={activeTab === 'vitals'} onClick={() => setActiveTab('vitals')}>{t('vitals', locale)}</Tab>
-                <Tab $active={activeTab === 'trends'} onClick={() => setActiveTab('trends')}>{t('trends', locale)}</Tab>
-            </TabContainer>
-
-            {/* Panels */}
-            {activeTab === 'vitals' && (
-                <div className="animate-slide-in">
-                    <SectionTitle>{tPop('load', populationMode, locale)}</SectionTitle>
-
-                    {/* WIP Load */}
-                    <BarRow>
-                        <span>{tPop('workItems', populationMode, locale)}</span>
-                        <span style={{ color: getWipColor(telemetryData?.wipLoad || 0), fontWeight: 700 }}>
-                            {telemetryData?.wipCurrent || 0} / {telemetryData?.wipLimit || '∞'}
-                        </span>
-                    </BarRow>
-                    <BarTrack>
-                        <BarFill
-                            $percent={telemetryData?.wipLoad || 0}
-                            $color={getWipColor(telemetryData?.wipLoad || 0)}
-                        />
-                    </BarTrack>
-
-                    {/* Burnout by Assignee */}
-                    {telemetryData?.teamBurnout && Object.keys(telemetryData.teamBurnout).length > 0 && (
+            <div style={{ padding: '16px 16px 0 16px' }}>
+                {/* KPI Grid */}
+                <Grid2>
+                    {isScrum && (
                         <>
-                            <SectionTitle>{t('teamBurnout', locale)}</SectionTitle>
-                            {Object.entries(telemetryData.teamBurnout).map(([name, value]: [string, any]) => (
-                                <div key={name}>
-                                    <BarRow>
-                                        <span>{name}</span>
-                                        <span>{value}%</span>
-                                    </BarRow>
-                                    <BarTrack style={{ height: 4, marginBottom: 8 }}>
-                                        <BarFill
-                                            $percent={value}
-                                            $color={value >= 80 ? 'var(--color-danger)' : value >= 60 ? 'var(--color-warning)' : 'var(--color-success)'}
-                                        />
-                                    </BarTrack>
-                                </div>
-                            ))}
+                            <KPIBox>
+                                <KPIValue style={{ fontSize: '32px' }}>{telemetryData?.velocity ?? '-'}</KPIValue>
+                                <KPILabel>{telemetryData?.velocityWindow ? `${tPop('progressMetric', 'scrum', locale)} (${telemetryData.velocityWindow})` : tPop('progressMetric', 'scrum', locale)}</KPILabel>
+                            </KPIBox>
+                            <KPIBox>
+                                <KPIValue style={{ fontSize: '32px' }}>{telemetryData?.completion || 0}%</KPIValue>
+                                <KPILabel>{tPop('completion', 'scrum', locale)}</KPILabel>
+                            </KPIBox>
                         </>
                     )}
-                </div>
-            )}
+                    {(isFlow || isProcess) && (
+                        <>
+                            <KPIBox>
+                                <KPIValue style={{ fontSize: '32px' }}>{telemetryData?.cycleTime ? `${telemetryData.cycleTime}h` : '-'}</KPIValue>
+                                <KPILabel>{tPop('timeMetric', populationMode, locale)}</KPILabel>
+                            </KPIBox>
+                            <KPIBox>
+                                <KPIValue style={{ fontSize: '32px' }}>{telemetryData?.throughput ?? '-'}</KPIValue>
+                                <KPILabel>{tPop('progressMetric', populationMode, locale)}</KPILabel>
+                            </KPIBox>
+                        </>
+                    )}
+                </Grid2>
 
-            {activeTab === 'trends' && trendData && (
-                <div className="animate-slide-in">
-                    <SectionTitle>{t('performanceTrends', locale)}</SectionTitle>
-                    <div style={{ marginBottom: 16 }}>
-                        <Sparkline
-                            data={trendData.wip?.data}
-                            label={t('wipConsistency', locale)}
-                            direction={trendData.wip?.direction}
-                            change={trendData.wip?.change}
-                        />
+                {/* Tabs */}
+                <TabContainer>
+                    <Tab $active={activeTab === 'vitals'} onClick={() => setActiveTab('vitals')}>{t('vitals', locale)}</Tab>
+                    <Tab $active={activeTab === 'trends'} onClick={() => setActiveTab('trends')}>{t('trends', locale)}</Tab>
+                </TabContainer>
+
+                {/* Panels */}
+                {activeTab === 'vitals' && (
+                    <div className="animate-slide-in">
+                        <SectionTitle>{tPop('load', populationMode, locale)}</SectionTitle>
+
+                        {/* WIP Load */}
+                        <BarRow>
+                            <span>{tPop('workItems', populationMode, locale)}</span>
+                            <span style={{ color: getWipColor(telemetryData?.wipLoad || 0), fontWeight: 700 }}>
+                                {telemetryData?.wipCurrent || 0} / {telemetryData?.wipLimit || '∞'}
+                            </span>
+                        </BarRow>
+                        <BarTrack>
+                            <BarFill
+                                $percent={telemetryData?.wipLoad || 0}
+                                $color={getWipColor(telemetryData?.wipLoad || 0)}
+                            />
+                        </BarTrack>
+
+                        {/* Burnout by Assignee */}
+                        {telemetryData?.teamBurnout && Object.keys(telemetryData.teamBurnout).length > 0 && (
+                            <>
+                                <SectionTitle>{t('teamBurnout', locale)}</SectionTitle>
+                                {Object.entries(telemetryData.teamBurnout).map(([name, value]: [string, any]) => (
+                                    <div key={name}>
+                                        <BarRow>
+                                            <span>{name}</span>
+                                            <span>{value}%</span>
+                                        </BarRow>
+                                        <BarTrack style={{ height: 4, marginBottom: 8 }}>
+                                            <BarFill
+                                                $percent={value}
+                                                $color={value >= 80 ? 'var(--color-danger)' : value >= 60 ? 'var(--color-warning)' : 'var(--color-success)'}
+                                            />
+                                        </BarTrack>
+                                    </div>
+                                ))}
+                            </>
+                        )}
                     </div>
-                    <div>
-                        <Sparkline
-                            data={trendData.velocity?.data}
-                            label={t('velocity', locale)}
-                            direction={trendData.velocity?.direction}
-                            change={trendData.velocity?.change}
-                            invertColors={true}
-                        />
+                )}
+
+                {activeTab === 'trends' && trendData && (
+                    <div className="animate-slide-in">
+                        <SectionTitle>{t('performanceTrends', locale)}</SectionTitle>
+                        <div style={{ marginBottom: 16 }}>
+                            <Sparkline
+                                data={trendData.wip?.data}
+                                label={t('wipConsistency', locale)}
+                                direction={trendData.wip?.direction}
+                                change={trendData.wip?.change}
+                            />
+                        </div>
+                        <div>
+                            <Sparkline
+                                data={trendData.velocity?.data}
+                                label={t('velocity', locale)}
+                                direction={trendData.velocity?.direction}
+                                change={trendData.velocity?.change}
+                                invertColors={true}
+                            />
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </Panel>
     )
 }

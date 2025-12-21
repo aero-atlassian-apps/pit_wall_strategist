@@ -6,7 +6,9 @@ import { theme } from './styles/theme'
 import GlobalStyles from './styles/GlobalStyles'
 import { TourProvider } from './context/TourContext'
 import TourOverlay from './components/Onboarding/TourOverlay'
-import './styles/base.css'
+import './theme/reset.css'
+import './theme/variables.css'
+import './theme/typography.css'
 import './styles/cards.css'
 
 // Bundled fonts for Runs on Atlassian compliance (no external CDN)
