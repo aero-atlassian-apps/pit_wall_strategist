@@ -18,27 +18,33 @@ const pulseRed = keyframes`
 const RadioFeed = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  /* height: 100%; removed to fix flex overflow */
   gap: 12px;
   overflow-y: auto;
   padding-right: 4px;
 `
 
 const FeedItem = styled.div<{ $priority: 'critical' | 'normal' | 'low' }>`
-  background: var(--bg-main);
+  background: var(--bg-card);
   border-left: 3px solid ${({ $priority }) =>
     $priority === 'critical' ? 'var(--color-danger)' :
       $priority === 'normal' ? 'var(--color-brand)' :
         'var(--border)'
   };
-  padding: 10px;
-  border-radius: 0 4px 4px 0;
+  padding: 12px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-subtle);
+  border-left-width: 3px;
   
   &:hover {
     background: var(--bg-card-hover);
     transform: translateX(2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-focus);
   }
 `
 
@@ -50,7 +56,7 @@ const FeedHeader = styled.div`
 `
 
 const SpeakerName = styled.span`
-  font-family: var(--font-mono);
+  font-family: var(--font-stack-mono);
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -61,26 +67,27 @@ const SpeakerName = styled.span`
 `
 
 const Timestamp = styled.span`
-  font-family: var(--font-mono);
+  font-family: var(--font-stack-mono);
   font-size: 9px;
   color: var(--text-muted);
 `
 
 const MessageText = styled.div`
-  font-family: var(--font-ui);
+  font-family: var(--font-stack-ui);
   font-size: 11px;
   color: var(--text-primary);
-  line-height: 1.4;
+  line-height: 1.5;
 `
 
 const IssueRef = styled.span`
-  font-family: var(--font-mono);
+  font-family: var(--font-stack-mono);
   font-size: 9px;
-  background: var(--bg-card);
+  background: var(--bg-surface-subtle);
   padding: 2px 4px;
   border-radius: 4px;
   margin-left: 6px;
-  color: var(--text-brand);
+  color: var(--color-brand);
+  border: 1px solid var(--border-subtle);
 `
 
 const BoxBoxButton = styled.button<{ $active: boolean }>`
@@ -90,7 +97,7 @@ const BoxBoxButton = styled.button<{ $active: boolean }>`
   border-radius: 6px;
   background: ${({ $active }) => $active ? 'var(--color-danger)' : 'var(--bg-card)'};
   color: ${({ $active }) => $active ? '#FFFFFF' : 'var(--text-disabled)'};
-  font-family: var(--font-mono);
+  font-family: var(--font-stack-mono);
   font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
@@ -105,7 +112,7 @@ const BoxBoxButton = styled.button<{ $active: boolean }>`
 
   ${({ $active }) => $active && css`
     animation: ${pulseRed} 2s infinite;
-    &:hover { background: var(--color-danger-hover); }
+    &:hover { background: var(--color-red-600); }
   `}
 `
 
@@ -199,62 +206,65 @@ export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, on
   // Header Actions
   const HeaderActions = (
     <div className="flex gap-2">
-      <IconButton
-        onClick={() => openAgentChat(t('rovo_radioPrompt', locale))}
-        title={t('rovo_radioBtn', locale)}
-        size="sm"
-        style={{ border: '1px solid var(--border)' }}
-      >
-        📡
-      </IconButton>
-      <IconButton
-        onClick={onRefresh}
-        size="sm"
-        style={{ border: '1px solid var(--border)' }}
-      >
-        ⟳
-      </IconButton>
+      <div style={{ display: 'inline-block', border: '1px solid var(--border)', borderRadius: '4px' }}>
+        <IconButton
+          onClick={() => openAgentChat(t('rovo_radioPrompt', locale))}
+          title={t('rovo_radioBtn', locale)}
+          size="sm"
+        >
+          📡
+        </IconButton>
+      </div>
+      <div style={{ display: 'inline-block', border: '1px solid var(--border)', borderRadius: '4px' }}>
+        <IconButton
+          onClick={onRefresh}
+          size="sm"
+        >
+          ⟳
+        </IconButton>
+      </div>
     </div>
   )
 
   return (
-    <Panel title={t('strategyAssistant', locale)} rightAction={HeaderActions} fullHeight>
-      <RadioFeed>
-        {recommendations.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-muted font-mono text-sm opacity-50 p-4 text-center">
-            {t('flowOptimalHint', locale)}
-          </div>
-        ) : (
-          recommendations.map((rec) => (
-            <FeedItem
-              key={rec.key}
-              $priority={rec.relevance.relevance === 'critical' ? 'critical' : 'normal'}
-              onClick={onBoxBox}
-            >
-              <FeedHeader>
-                <SpeakerName>
-                  🎧 Race Engineer
-                </SpeakerName>
-                <Timestamp>Now</Timestamp>
-              </FeedHeader>
-              <MessageText>
-                {rec.relevance.reason}
-                <IssueRef>{rec.issue.key}</IssueRef>
-              </MessageText>
-              <div style={{ marginTop: 6, fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--color-brand)', fontWeight: 700 }}>
-                Recommended: {rec.action.name.toUpperCase()}
-              </div>
-            </FeedItem>
-          ))
-        )}
-      </RadioFeed>
+    <Panel title={t('strategyAssistant', locale)} rightAction={HeaderActions}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <RadioFeed style={{ flex: 1, minHeight: 0 }}>
+          {recommendations.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontFamily: 'var(--font-stack-mono)', fontSize: '12px', opacity: 0.8, textAlign: 'center', padding: '16px' }}>
+              {t('flowOptimalHint', locale)}
+            </div>
+          ) : (
+            recommendations.map((rec) => (
+              <FeedItem
+                key={rec.key}
+                $priority={rec.relevance.relevance === 'critical' ? 'critical' : 'normal'}
+                onClick={onBoxBox}
+              >
+                <FeedHeader>
+                  <SpeakerName>
+                    🎧 Race Engineer
+                  </SpeakerName>
+                  <Timestamp>Now</Timestamp>
+                </FeedHeader>
+                <MessageText>
+                  {rec.relevance.reason}
+                  <IssueRef>{rec.issue.key}</IssueRef>
+                </MessageText>
+                <div style={{ marginTop: 6, fontSize: 10, fontFamily: 'var(--font-stack-mono)', color: 'var(--color-brand)', fontWeight: 700 }}>
+                  Recommended: {rec.action.name.toUpperCase()}
+                </div>
+              </FeedItem>
+            ))
+          )}
+        </RadioFeed>
 
-      <div style={{ marginTop: 16 }}>
-        <BoxBoxButton $active={alertActive || recommendations.some(r => r.relevance.relevance === 'critical')} onClick={onBoxBox}>
-          {t('boxboxCritical', locale) || 'BOX BOX'}
-        </BoxBoxButton>
+        <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}>
+          <BoxBoxButton $active={alertActive || recommendations.some(r => r.relevance.relevance === 'critical')} onClick={onBoxBox}>
+            {t('boxboxCritical', locale) || 'BOX BOX'}
+          </BoxBoxButton>
+        </div>
       </div>
     </Panel>
   )
 }
-

@@ -1,7 +1,7 @@
 import type { BoardData, TelemetryConfig, TelemetryData } from '../../types/telemetry';
 import type { JiraIssue } from '../../types/jira';
 import { IssueCategorizer } from '../../resolvers/issue/IssueCategorizer';
-import { MetricCalculator } from './legacy/MetricCalculator';
+import { MetricCalculator } from './MetricCalculator';
 import { fieldDiscoveryService } from './FieldDiscoveryService';
 
 export const DEFAULT_CONFIG: TelemetryConfig = {
@@ -15,8 +15,10 @@ export const DEFAULT_CONFIG: TelemetryConfig = {
     locale: 'en'
 };
 
-export class LegacyTelemetryAdapter {
-    static async calculateTelemetry(boardData: BoardData, config: TelemetryConfig = DEFAULT_CONFIG, statusMap?: any): Promise<TelemetryData> {
+import { InternalContext } from '../../domain/types/Context';
+
+export class TelemetryService {
+    static async calculateTelemetry(boardData: BoardData, config: TelemetryConfig = DEFAULT_CONFIG, context: InternalContext, statusMap?: any): Promise<TelemetryData> {
         if (boardData.isRestricted) {
             return {
                 status: 'disabled',
@@ -26,7 +28,7 @@ export class LegacyTelemetryAdapter {
         }
         const categorizer = new IssueCategorizer(statusMap);
         const calculator = new MetricCalculator(categorizer, config);
-        return calculator.calculate(boardData);
+        return calculator.calculate(boardData, context);
     }
 
     static detectStalledTickets(issues: JiraIssue[], config: TelemetryConfig = DEFAULT_CONFIG, statusMap?: any) {

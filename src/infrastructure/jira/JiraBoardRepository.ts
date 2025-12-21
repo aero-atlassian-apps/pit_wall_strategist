@@ -5,7 +5,7 @@ import { JiraDataService } from '../jira/JiraDataService';
 import { SecurityGuard } from '../services/SecurityGuard';
 import { issueSearchService } from '../services/IssueSearchService';
 import { fieldDiscoveryService } from '../services/FieldDiscoveryService';
-import { DEFAULT_CONFIG } from '../services/LegacyTelemetryAdapter';
+import { DEFAULT_CONFIG } from '../services/TelemetryService';
 
 const discoveryService = new BoardDiscoveryService();
 const dataService = new JiraDataService();
@@ -44,7 +44,7 @@ export class JiraBoardRepository {
         }
 
         if (boardInfo.boardType === 'kanban') {
-            return this.fetchKanbanData(boardInfo, config);
+            return this.fetchKanbanData(boardInfo, config, projectKey);
         }
 
         return this.fetchScrumData(boardInfo, config, projectKey);
@@ -66,9 +66,8 @@ export class JiraBoardRepository {
         const result = await issueSearchService.search(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate']);
 
         const customFields = await fieldDiscoveryService.discoverCustomFields();
-        const storyPointsField = customFields.storyPoints || null;
-        const fields = ['status', 'created', 'resolutiondate', 'updated'];
-        if (storyPointsField) fields.push(storyPointsField);
+        const storyPointsFields = customFields.storyPoints || [];
+        const fields = ['status', 'created', 'resolutiondate', 'updated', ...storyPointsFields];
 
         const historyJql = `project = "${projectKey}" AND statusCategory = Done AND updated >= -30d`;
         const historyResult = await issueSearchService.search(historyJql, fields, true);
@@ -93,9 +92,8 @@ export class JiraBoardRepository {
             const sprintIds = closedSprints.map(s => s.id).join(',');
             const historyJql = `sprint in (${sprintIds})`;
             const customFields = await fieldDiscoveryService.discoverCustomFields();
-            const storyPointsField = customFields.storyPoints || null;
-            const fieldsToFetch = ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate'];
-            if (storyPointsField) fieldsToFetch.push(storyPointsField);
+            const storyPointsFields = customFields.storyPoints || [];
+            const fieldsToFetch = ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate', ...storyPointsFields];
 
             const historyRes = await issueSearchService.search(historyJql, fieldsToFetch, false);
             historicalIssues = historyRes.ok ? historyRes.issues : [];
@@ -132,8 +130,12 @@ export class JiraBoardRepository {
             return { ...boardCtx, issues: [], sprint: undefined, closedSprints, historicalIssues };
         }
 
+        const customFields = await fieldDiscoveryService.discoverCustomFields();
+        const storyPointsFields = customFields.storyPoints || [];
+        const fieldsToFetch = ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate', ...storyPointsFields];
+
         const initialJql = `sprint = ${activeSprint.id}`;
-        const initialJqlRes = await issueSearchService.search(initialJql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate'], false);
+        const initialJqlRes = await issueSearchService.search(initialJql, fieldsToFetch, false);
 
         const sprintObj = {
             id: activeSprint.id, // Fixed: removed .id.id if that was ever an error
@@ -152,46 +154,52 @@ export class JiraBoardRepository {
         return { ...boardCtx, sprint: sprintObj, issues, closedSprints, historicalIssues };
     }
 
-    private async fetchKanbanData(boardCtx: BoardContext, config?: TelemetryConfig): Promise<BoardData> {
+    private async fetchKanbanData(boardCtx: BoardContext, config: TelemetryConfig | undefined, projectKey: string): Promise<BoardData> {
         const boardId = boardCtx.boardId!;
         const apiIssues = await dataService.getKanbanBoardIssues(boardId);
         let historicalIssues: JiraIssue[] = [];
 
-        if (apiIssues.length > 0) {
-            const projectKey = apiIssues[0].fields?.project?.key || apiIssues[0].key.split('-')[0];
-            if (projectKey) {
-                const customFields = await fieldDiscoveryService.discoverCustomFields();
-                const storyPointsField = customFields.storyPoints || null;
-                const fields = ['status', 'created', 'resolutiondate', 'updated'];
-                if (storyPointsField) fields.push(storyPointsField);
-                const historyJql = `project = "${projectKey}" AND statusCategory = Done AND updated >= -30d`;
-                const historyRes = await issueSearchService.search(historyJql, fields, true);
-                if (historyRes.ok) historicalIssues = historyRes.issues;
-            }
+        // Use provided projectKey or fallback to issue extraction
+        const pKey = projectKey || (apiIssues.length > 0 ? (apiIssues[0].fields?.project?.key || apiIssues[0].key.split('-')[0]) : undefined);
+
+        if (pKey) {
+            const customFields = await fieldDiscoveryService.discoverCustomFields();
+            const storyPointsFields = customFields.storyPoints || [];
+            const fields = ['status', 'created', 'resolutiondate', 'updated', ...storyPointsFields];
+
+            // Fetch History (Last 30 Days)
+            // Robustness: statusCategory = Done is standard JQL. 
+            const historyJql = `project = "${pKey}" AND statusCategory = Done AND updated >= -30d`;
+            const historyRes = await issueSearchService.search(historyJql, fields, true);
+            if (historyRes.ok) historicalIssues = historyRes.issues;
         }
 
         if (apiIssues.length > 0) return { ...boardCtx, issues: apiIssues, historicalIssues };
 
-        const filterIssues = await this.fetchAllBoardIssues(boardId);
+        const filterIssues = await this.fetchAllBoardIssues(boardId, pKey);
         if (filterIssues.length > 0) return { ...boardCtx, issues: filterIssues, historicalIssues };
 
-        return { ...boardCtx, issues: [], historicalIssues: [] };
+        return { ...boardCtx, issues: [], historicalIssues };
     }
 
     private async fetchAllBoardIssues(boardId: number, projectKey?: string, sprintId?: number): Promise<JiraIssue[]> {
+        const customFields = await fieldDiscoveryService.discoverCustomFields();
+        const storyPointsFields = customFields.storyPoints || [];
+        const fields = ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate', ...storyPointsFields];
+
         const cfg = await dataService.getBoardConfiguration(boardId);
         const filterId = cfg?.filter?.id;
 
         if (filterId) {
             let jql = `filter = ${filterId}`;
             if (sprintId) jql += ` AND sprint = ${sprintId}`;
-            const res = await issueSearchService.search(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate']);
+            const res = await issueSearchService.search(jql, fields);
             if (res.ok) return res.issues;
         }
 
         if (projectKey) {
             const jql = `project = "${projectKey}" ORDER BY updated DESC`;
-            const res = await dataService.searchJqlUserOnly(jql, ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created', 'labels', 'resolutiondate'], 100);
+            const res = await dataService.searchJqlUserOnly(jql, fields, 100);
             if (res.ok) return res.issues;
         }
 

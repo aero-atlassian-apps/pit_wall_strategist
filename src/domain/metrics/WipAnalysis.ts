@@ -1,4 +1,5 @@
 import { DomainIssue } from '../issue/DomainIssue';
+import { JiraStatusCategory } from '../issue/JiraStatusCategory';
 
 export interface WipConsistencyResult {
     consistency: number;
@@ -10,15 +11,8 @@ export class WipAnalysis {
     /**
      * Calculates the stability of WIP over the last few weeks.
      * Lower consistency score = more variance (bad).
-     * Wait, typical "Consistency" score logic:
-     * Original code returns "stdDev". High StdDev = Low Consistency?
-     * "wipConsistencyResult.consistency" is assigned "stdDev".
-     * So it's confusing naming. "WIP Deviation" is better.
-     * But I must stick to "Consistency" if that's what the UI expects, OR rename it properly in Domain and map it in DTO.
-     * UI uses `wipConsistency`.
-     * I will name the method `calculateDeviation` and the result `consistency` to match DTO for now, but document it.
      */
-    public calculateDeviation(historicalIssues: DomainIssue[], currentWip: number): WipConsistencyResult {
+    public calculateDeviation(historicalIssues: DomainIssue[], currentWip: number, statusResolver: (statusName: string) => JiraStatusCategory): WipConsistencyResult {
         // Metric: Standard Deviation of WIP over time.
 
         // Issues with history are needed to reconstruct past states
@@ -36,19 +30,13 @@ export class WipAnalysis {
             // Index 0 is Now
             if (index === 0) return currentWip;
 
-            // Reconstruct typical "Done" issues state
-            // This logic is imperfect but preserved from original:
-            // Count issues that were Created <= Time AND (Not Resolved OR Resolved > Time)
-
+            // Accurate Historical WIP Reconstruction:
+            // For each issue, determine its status category at 'time'
             let count = 0;
             for (const issue of historicalIssues) {
-                const created = issue.created.getTime();
-                const resolved = issue.resolved?.getTime() || null;
-
-                if (created <= time) {
-                    if (!resolved || resolved > time) {
-                        count++;
-                    }
+                const category = this.getCategoryAtTime(issue, time, statusResolver);
+                if (category.isInProgress) {
+                    count++;
                 }
             }
             return count;
@@ -67,5 +55,45 @@ export class WipAnalysis {
             consistency: val,
             explanation: `exp:wipDeviation:deviation=${val}:avg=${avg}`
         };
+    }
+
+    public getCategoryAtTime(issue: DomainIssue, time: number, statusResolver: (statusName: string) => JiraStatusCategory): JiraStatusCategory {
+        // If not created yet, category is essentially 'null' or 'new'
+        if (issue.created.getTime() > time) return JiraStatusCategory.TO_DO;
+
+        // Determine category at 'time'
+        let category: JiraStatusCategory = JiraStatusCategory.TO_DO; // Default starting assumptions
+
+        if (issue.changelog && issue.changelog.histories) {
+            // Start from the status it was created with (approximate from first history)
+            const histories = [...issue.changelog.histories].sort((a, b) => new Date(a.created).getTime() - new Date(b.created).getTime());
+
+            if (histories.length > 0 && histories[0].items.find(i => i.field === 'status')?.fromString) {
+                category = statusResolver(histories[0].items.find(i => i.field === 'status')!.fromString);
+            }
+
+            for (const h of histories) {
+                const hTime = new Date(h.created).getTime();
+                if (hTime > time) break; // This transition happened AFTER the time we are checking
+
+                const statusChange = h.items.find(it => it.field === 'status');
+                if (statusChange) {
+                    category = statusResolver(statusChange.toString);
+                }
+            }
+        } else {
+            // No changelog: Fallback to Lead Time proxy
+            const resolved = issue.resolved?.getTime() || null;
+            const created = issue.created.getTime();
+
+            if (time >= created && (!resolved || time < resolved)) {
+                // If we don't have a changelog, we can only guess based on current status
+                // But this is the "Changelog Blindness" we are fixing.
+                // For the sake of consistency, if no changelog, we assume current category if it hasn't been resolved yet
+                return issue.statusCategory;
+            }
+        }
+
+        return category;
     }
 }

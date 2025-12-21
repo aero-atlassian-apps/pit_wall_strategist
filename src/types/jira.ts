@@ -35,6 +35,8 @@ export interface JiraIssue {
                 field: string;
                 fromString: string;
                 toString: string;
+                from?: string;
+                to?: string;
             }[];
         }[];
     };

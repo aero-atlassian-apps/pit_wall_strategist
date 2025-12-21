@@ -21,7 +21,11 @@ export function getSituationAnalysis(
     if (issue.isBlocked) {
         insights.push('🚩 RED FLAG: This issue is blocked.');
     } else if (issue.isStalled) {
-        insights.push(`⚠️ HIGH DRAG: No movement for ${issue.daysInStatus} days.`);
+        if ((issue.storyPoints || 0) >= 5) {
+            insights.push(`⚠️ HIGH DRAG: Large item (${issue.storyPoints}pts) stalled for ${issue.daysInStatus} days.`);
+        } else {
+            insights.push(`⚠️ HIGH DRAG: No movement for ${issue.daysInStatus} days.`);
+        }
     }
 
     if (issue.statusCategory === 'indeterminate' && issue.daysInStatus > 5) {
@@ -34,6 +38,8 @@ export function getSituationAnalysis(
 
     if (issue.hasSubtasks) {
         insights.push('Subtasks in progress - check crew status.');
+    } else if (issue.isStalled && (issue.storyPoints || 0) >= 5) {
+        insights.push('No subtasks detected on large item. Consider breaking down.');
     }
 
     if (insights.length === 0) {

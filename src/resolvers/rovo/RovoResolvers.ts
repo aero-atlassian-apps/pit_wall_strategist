@@ -10,9 +10,10 @@
 
 import api, { route } from '@forge/api';
 import { JiraBoardRepository } from '../../infrastructure/jira/JiraBoardRepository';
-import { LegacyTelemetryAdapter } from '../../infrastructure/services/LegacyTelemetryAdapter';
+import { TelemetryService } from '../../infrastructure/services/TelemetryService';
 import { StatusMapService } from '../../infrastructure/services/StatusMapService';
 import { getEffectiveConfig } from '../config/ConfigResolvers';
+import { getProjectContext } from '../contextEngine';
 import { mockTelemetry } from '../mocks';
 import { calculateWipTrend } from '../trendMetrics';
 
@@ -48,7 +49,9 @@ export function registerRovoResolvers(resolver: any): void {
             if (projectKey && PLATFORM !== 'local') {
                 const boardData = await boardRepository.getBoardData(projectKey, userConfig, context);
                 const statusMap = await statusMapService.getProjectStatusMap(projectKey);
-                const telemetry = await LegacyTelemetryAdapter.calculateTelemetry(boardData, userConfig, statusMap);
+                const ctx = await getProjectContext(projectKey);
+
+                const telemetry = await TelemetryService.calculateTelemetry(boardData, userConfig, ctx, statusMap);
                 const trends = await calculateWipTrend(projectKey);
                 const sprintName = boardData.sprint?.name || boardData.boardName;
                 data = { telemetry, trends, sprintName, issues: boardData.issues, boardType: boardData.boardType };
@@ -59,6 +62,15 @@ export function registerRovoResolvers(resolver: any): void {
             const lowerMsg = (message || '').toLowerCase();
             let response = '';
             const isKanban = data.boardType === 'kanban';
+
+            // Get full project context with metricValidity
+            let metricValidity: any = {};
+            if (projectKey && PLATFORM !== 'local') {
+                try {
+                    const ctx = await getProjectContext(projectKey);
+                    metricValidity = ctx.metricValidity || {};
+                } catch { /* Use empty validity if context fetch fails */ }
+            }
 
             // === ENHANCED: Per-Assignee Workload Analysis ===
             const getAssigneeStats = (issues: any[]) => {
@@ -155,12 +167,19 @@ export function registerRovoResolvers(resolver: any): void {
                 response = `🏁 **Strategic Recommendations**\n\nBased on current ${data.sprintName} telemetry:\n\n${recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n\n')}`;
 
             } else if (lowerMsg.includes('pace') || lowerMsg.includes('velocity')) {
-                const trend = data.trends?.change || 0;
-                const dir = data.trends?.direction || 'flat';
-                const driverInsight = overloadedDrivers.length > 0
-                    ? `\n\n⚠️ **Driver Alert**: ${overloadedDrivers[0][0]} may be affecting pace (${overloadedDrivers[0][1].stalled} stalled).`
-                    : '';
-                response = `🏎️ **Telemetry Report: Pace Analysis**\n\nCurrent Fuel Load (WIP) is **${data.telemetry.wipLoad}%**.\nVelocity is trending **${dir}** (${trend}% vs last sprint).${driverInsight}\n\n*Engineer's Call*: ${data.telemetry.wipLoad > 100 ? 'We are heavy on fuel. Box for a strategy adjustment.' : 'Pace is good. Push for the fastest lap.'}`;
+                // Check if velocity is hidden for this context
+                if (metricValidity.velocity === 'hidden') {
+                    // For Kanban/Business: Redirect to throughput instead
+                    const throughput = data.trends?.velocity?.total || data.telemetry?.throughput || 0;
+                    response = `📊 **Flow Rate Report**\n\nVelocity is not applicable for ${isKanban ? 'flow-based boards' : 'this project type'}.\nInstead, let\'s look at **Throughput**: **${throughput}** items completed this period.\nCurrent Fuel Load (WIP): **${data.telemetry.wipLoad}%**\n\n*For flow teams, focus on cycle time and throughput for performance tracking.*`;
+                } else {
+                    const trend = data.trends?.change || 0;
+                    const dir = data.trends?.direction || 'flat';
+                    const driverInsight = overloadedDrivers.length > 0
+                        ? `\n\n⚠️ **Driver Alert**: ${overloadedDrivers[0][0]} may be affecting pace (${overloadedDrivers[0][1].stalled} stalled).`
+                        : '';
+                    response = `🏎️ **Telemetry Report: Pace Analysis**\n\nCurrent Fuel Load (WIP) is **${data.telemetry.wipLoad}%**.\nVelocity is trending **${dir}** (${trend}% vs last sprint).${driverInsight}\n\n*Engineer's Call*: ${data.telemetry.wipLoad > 100 ? 'We are heavy on fuel. Box for a strategy adjustment.' : 'Pace is good. Push for the fastest lap.'}`;
+                }
             } else if (lowerMsg.includes('cycle') || lowerMsg.includes('lap time')) {
                 const cycleTime = data.timing?.cycleTime?.average || data.timing?.leadTime?.avgLapTime || '-';
                 response = `⏱️ **Lap Time Analysis (Cycle Time)**\n\nAverage Lap Time: **${cycleTime}h**\nThis measures how long tickets spend in active work.\n\n*${isKanban ? 'Flow Optimization' : 'Sprint'}*: ${cycleTime > 48 ? 'Lap times are too long. Consider breaking down large items.' : 'Lap times are competitive. Maintain current pace.'}`;

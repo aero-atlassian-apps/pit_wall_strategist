@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import styled from 'styled-components'
 
 interface PanelProps {
@@ -8,23 +8,31 @@ interface PanelProps {
   className?: string
   loading?: boolean
   error?: string
+  collapsible?: boolean
+  defaultCollapsed?: boolean
 }
 
-const PanelContainer = styled.section`
-  background: var(--bg-panel);
-  backdrop-filter: blur(12px); /* Glass effect */
-  -webkit-backdrop-filter: blur(12px);
-  border-radius: 8px; /* Do not use theme object if possible, rely on var */
-  border: 1px solid var(--border);
+const GlassFrame = styled.section<{ $collapsed?: boolean }>`
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  height: 100%;
-  box-shadow: var(--shadow-card);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  transition: all 0.3s ease;
+  height: ${({ $collapsed }) => $collapsed ? 'auto' : '100%'};
+  min-height: ${({ $collapsed }) => $collapsed ? 'auto' : 'min-content'};
+
+  [data-theme='dark'] & {
+    background: var(--bg-surface);
+    border-color: var(--border-app);
+    box-shadow: var(--shadow-md);
+  }
 
   &:hover {
-    border-color: var(--border-subtle); /* subtle highlight */
+    border-color: var(--border-focus);
   }
 `
 
@@ -32,33 +40,41 @@ const PanelHeader = styled.header`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-app);
+  background: var(--bg-surface-subtle);
   min-height: 48px;
-  background: var(--bg-panel);
+  cursor: pointer;
+`
+
+const HeaderLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `
 
 const PanelTitle = styled.h2`
-  font-family: var(--font-mono);
-  font-size: 12px;
+  margin: 0;
+  font-family: var(--font-stack-mono);
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 1.5px;
+  font-weight: 700;
   color: var(--text-secondary);
-  font-weight: 600;
-  margin: 0;
 `
 
-const PanelContent = styled.div`
+const PanelContent = styled.div<{ $collapsed?: boolean; $padding?: string }>`
   flex: 1;
   overflow: auto;
-  padding: 0;
+  padding: ${({ $padding }) => $padding || 'var(--space-4)'};
   position: relative;
+  display: ${({ $collapsed }) => $collapsed ? 'none' : 'block'};
 `
 
 const LoadingOverlay = styled.div`
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: var(--bg-panel);
+  background: var(--bg-surface);
   opacity: 0.7;
   display: flex;
   align-items: center;
@@ -77,23 +93,46 @@ const ErrorState = styled.div`
   font-size: 12px;
 `
 
-export const Panel: React.FC<PanelProps> = ({ title, rightAction, children, className, loading, error }) => {
+const CollapseIcon = styled.span<{ $collapsed?: boolean }>`
+    font-size: 16px;
+    transition: transform 0.2s;
+    transform: rotate(${({ $collapsed }) => $collapsed ? '-90deg' : '0deg'});
+    opacity: 0.5;
+`
+
+export const Panel: React.FC<PanelProps> = ({
+  title,
+  rightAction,
+  children,
+  className,
+  loading,
+  error,
+  collapsible = false,
+  defaultCollapsed = false
+}) => {
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
+
+  const handleToggle = () => {
+    if (collapsible) setIsCollapsed(!isCollapsed)
+  }
+
   return (
-    <PanelContainer className={className}>
-      <PanelHeader>
-        <PanelTitle>{title}</PanelTitle>
-        {rightAction && <div>{rightAction}</div>}
+    <GlassFrame className={className} $collapsed={isCollapsed}>
+      <PanelHeader onClick={handleToggle} style={{ cursor: collapsible ? 'pointer' : 'default' }}>
+        <HeaderLeft>
+          {collapsible && <CollapseIcon $collapsed={isCollapsed}>▼</CollapseIcon>}
+          <PanelTitle>{title}</PanelTitle>
+        </HeaderLeft>
+        <div onClick={(e) => e.stopPropagation()}>{rightAction}</div>
       </PanelHeader>
-      <PanelContent>
+      <PanelContent $collapsed={isCollapsed}>
         {error ? (
-          <ErrorState>
-            ⚠️ {error}
-          </ErrorState>
+          <ErrorState>⚠️ {error}</ErrorState>
         ) : (
           children
         )}
         {loading && <LoadingOverlay>INITIALIZING...</LoadingOverlay>}
       </PanelContent>
-    </PanelContainer>
+    </GlassFrame>
   )
 }

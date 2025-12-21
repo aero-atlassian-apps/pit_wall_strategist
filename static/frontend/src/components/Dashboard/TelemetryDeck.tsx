@@ -133,13 +133,35 @@ type Props = {
 export default function TelemetryDeck({ telemetryData, timingMetrics, trendData, boardType = 'scrum', projectContext, onRefresh }: Props) {
     const locale = (window as any).__PWS_LOCALE || 'en'
     const [activeTab, setActiveTab] = useState<'vitals' | 'trends'>('vitals')
-    const { boardType: ctxBoardType } = useBoardContext()
-    const effectiveBoardType = ctxBoardType || boardType
-    const populationMode = getPopulationMode(effectiveBoardType)
+    const { context } = useBoardContext()
 
-    const isScrum = effectiveBoardType === 'scrum'
-    const isFlow = effectiveBoardType === 'kanban'
-    const isProcess = effectiveBoardType === 'business'
+    // Derive boardType properly (like NextGen components)
+    // context.boardStrategy can be 'scrum', 'kanban', or 'none'
+    // context.projectType can be 'software' or 'business'
+    let derivedBoardType: 'scrum' | 'kanban' | 'business';
+    if (context?.projectType === 'business') {
+        derivedBoardType = 'business';
+    } else if (context?.boardStrategy === 'kanban') {
+        derivedBoardType = 'kanban';
+    } else if (context?.boardStrategy === 'scrum') {
+        derivedBoardType = 'scrum';
+    } else {
+        derivedBoardType = boardType || 'scrum'; // fallback to prop
+    }
+
+    const populationMode = getPopulationMode(derivedBoardType)
+
+    // Use metricValidity from context (canonical source of truth)
+    const metricValidity = context?.metricValidity || {};
+
+    // Visibility flags based on metricValidity
+    const showVelocity = metricValidity.velocity !== 'hidden';
+    const showCycleTime = metricValidity.cycleTime !== 'hidden';
+    const showThroughput = metricValidity.throughput !== 'hidden';
+    // Sprint metrics only show for scrum
+    const showSprintMetrics = showVelocity && derivedBoardType === 'scrum';
+    // Flow metrics show for kanban/business
+    const showFlowMetrics = !showSprintMetrics;
 
     const getWipColor = (load: number) => {
         if (load >= 100) return 'var(--color-danger)'
@@ -153,7 +175,6 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                 onClick={() => openAgentChat(t('rovo_briefingPrompt', locale))}
                 title={t('rovo_briefingBtn', locale)}
                 size="sm"
-                style={{ border: '1px solid var(--border)' }}
             >
                 🤖
             </IconButton>
@@ -161,7 +182,6 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                 onClick={onRefresh}
                 size="sm"
                 ariaLabel={t('refresh', locale)}
-                style={{ border: '1px solid var(--border)' }}
             >
                 ⟳
             </IconButton>
@@ -183,25 +203,25 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
             <div style={{ padding: '16px 16px 0 16px' }}>
                 {/* KPI Grid */}
                 <Grid2>
-                    {isScrum && (
+                    {showSprintMetrics && (
                         <>
-                            <KPIBox>
+                            <KPIBox title={telemetryData?.velocityExplanation || t('velocityHelp', locale)}>
                                 <KPIValue style={{ fontSize: '32px' }}>{telemetryData?.velocity ?? '-'}</KPIValue>
-                                <KPILabel>{telemetryData?.velocityWindow ? `${tPop('progressMetric', 'scrum', locale)} (${telemetryData.velocityWindow})` : tPop('progressMetric', 'scrum', locale)}</KPILabel>
+                                <KPILabel>{telemetryData?.velocityWindow ? `${tPop('progressMetric', populationMode, locale)} (${telemetryData.velocityWindow})` : tPop('progressMetric', populationMode, locale)}</KPILabel>
                             </KPIBox>
                             <KPIBox>
                                 <KPIValue style={{ fontSize: '32px' }}>{telemetryData?.completion || 0}%</KPIValue>
-                                <KPILabel>{tPop('completion', 'scrum', locale)}</KPILabel>
+                                <KPILabel>{tPop('completion', populationMode, locale)}</KPILabel>
                             </KPIBox>
                         </>
                     )}
-                    {(isFlow || isProcess) && (
+                    {showFlowMetrics && (
                         <>
-                            <KPIBox>
+                            <KPIBox title={telemetryData?.cycleTimeExplanation || t('cycleTimeHelp', locale)}>
                                 <KPIValue style={{ fontSize: '32px' }}>{telemetryData?.cycleTime ? `${telemetryData.cycleTime}h` : '-'}</KPIValue>
                                 <KPILabel>{tPop('timeMetric', populationMode, locale)}</KPILabel>
                             </KPIBox>
-                            <KPIBox>
+                            <KPIBox title={telemetryData?.throughputExplanation || t('throughputHelp', locale)}>
                                 <KPIValue style={{ fontSize: '32px' }}>{telemetryData?.throughput ?? '-'}</KPIValue>
                                 <KPILabel>{tPop('progressMetric', populationMode, locale)}</KPILabel>
                             </KPIBox>

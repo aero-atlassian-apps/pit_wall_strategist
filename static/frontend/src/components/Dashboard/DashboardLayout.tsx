@@ -6,7 +6,9 @@ const LayoutRoot = styled.main`
   grid-template-columns: 320px minmax(0, 1fr) 300px;
   grid-template-rows: 100%;
   gap: 16px;
-  height: calc(100vh - 64px); /* Header height approx 48-64px */
+  gap: 16px;
+  flex: 1;
+  min-height: 0; /* Crucial for scrolling inside grid items */
   padding: 16px;
   overflow: hidden;
   box-sizing: border-box;

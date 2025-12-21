@@ -45,6 +45,9 @@ export interface TelemetryData {
   healthStatus: 'OPTIMAL' | 'WARNING' | 'CRITICAL'
   // Replaces sprintStatus for backward compatibility (calculated from healthStatus)
   sprintStatus?: 'OPTIMAL' | 'WARNING' | 'CRITICAL'
+  sprintDaysRemaining?: number
+  sprintName?: string
+  boardId?: number
 
   velocity?: number // Average velocity (Scrum)
   velocityDelta?: number // Only relevant for Scrum
@@ -60,6 +63,10 @@ export interface TelemetryData {
   wipLimit: number
   wipCurrent: number
   wipExplanation?: string
+  wipConsistency?: number
+  wipConsistencyExplanation?: string
+
+  flowEfficiency?: number // Percentage of actively worked items (not stalled)
 
   teamBurnout: Record<string, number>
   issuesByStatus: { todo: number; inProgress: number; done: number }

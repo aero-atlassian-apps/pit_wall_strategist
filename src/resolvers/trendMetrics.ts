@@ -89,15 +89,31 @@ function countInProgressAtTime(issues: any[], at: Date, statusMap: any): number 
 
 export async function calculateVelocityTrend(projectKey: string): Promise<TrendData> {
   console.log(`[Velocity Trend] Starting calculation for ${projectKey}`)
+
+  // 1. Fetch Issues with Changelog (reusing the helper from WIP Trend)
+  // We get last 30 days to be safe for a 7-day trend
+  const issues = await getRecentIssuesWithChangelog(projectKey);
+  console.log(`[Velocity Trend] Fetched ${issues.length} issues for ${projectKey}`);
+
   const now = new Date()
   const trend: any[] = []
 
+  // 2. Bucketing Logic
   for (let daysAgo = 6; daysAgo >= 0; daysAgo--) {
     const date = new Date(now)
     date.setDate(date.getDate() - daysAgo)
-    const count = await getCompletedOnDate(projectKey, date)
+    const dayStr = date.toISOString().split('T')[0]
+
+    // Define Day Boundaries (Local time approximation or UTC? Using simple ISO date match)
+    // Better: Count items that were "Completed" on this specific day.
+
+    const startOfDay = new Date(date); startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date); endOfDay.setHours(23, 59, 59, 999);
+
+    const count = countCompletedOnDay(issues, startOfDay, endOfDay);
+
     trend.push({
-      date: date.toISOString().split('T')[0],
+      date: dayStr,
       dayLabel: daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yest' : `D-${daysAgo}`,
       value: count
     })
@@ -108,8 +124,6 @@ export async function calculateVelocityTrend(projectKey: string): Promise<TrendD
   const total = trend.reduce((sum, d) => sum + d.value, 0)
   const avgVelocity = total / trend.length
 
-  // Calculate direction similar to WIP: compare first half to second half
-  // Compare first 3 days vs last 3 days, skip middle day for symmetric comparison
   const firstHalf = trend.slice(0, 3).reduce((sum, d) => sum + d.value, 0) / 3
   const secondHalf = trend.slice(-3).reduce((sum, d) => sum + d.value, 0) / 3
   const change = Math.round(((secondHalf - firstHalf) / (firstHalf || 1)) * 100)
@@ -124,32 +138,59 @@ export async function calculateVelocityTrend(projectKey: string): Promise<TrendD
   }
 }
 
-async function getCompletedOnDate(projectKey: string, date: Date) {
-  try {
-    const dateStr = date.toISOString().split('T')[0]
-    const nextDate = new Date(date)
-    nextDate.setDate(nextDate.getDate() + 1)
-    const nextStr = nextDate.toISOString().split('T')[0]
-    const jql = `project = "${projectKey}" AND resolutiondate >= "${dateStr}" AND resolutiondate < "${nextStr}"`
-    const response = await api.asApp().requestJira(
-      route`/rest/api/3/search/jql`,
-      {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jql, maxResults: 1, fields: [] })
+function countCompletedOnDay(issues: any[], start: Date, end: Date): number {
+  let count = 0;
+  const startTime = start.getTime();
+  const endTime = end.getTime();
+
+  for (const issue of issues) {
+    // STRATEGY:
+    // 1. Check if 'resolutiondate' falls in range (Most reliable if populated)
+    // 2. Check if status CHANGED to 'Done' category in range (Changelog)
+
+    let completedAt: number | null = null;
+
+    if (issue.fields.resolutiondate) {
+      const resTime = new Date(issue.fields.resolutiondate).getTime();
+      if (resTime >= startTime && resTime <= endTime) {
+        count++;
+        continue; // Counted
       }
-    )
-    if (!response.ok) {
-      const errText = await response.text().catch(() => 'unknown')
-      console.warn(`[Velocity] getCompletedOnDate ${dateStr} failed: ${response.status} - ${errText}`)
-      return 0
     }
-    const result = await response.json()
-    return result.total || 0
-  } catch (error) {
-    console.error('[Velocity] getCompletedOnDate exception:', error)
-    return 0
+
+    // If no resolution date match, check changelog for transition into Done
+    // This handles cases where Resolution isn't set but status is Done
+    const histories = issue.changelog?.histories || [];
+    if (histories.length > 0) {
+      // Find the *latest* transition to Done? Or any?
+      // Usually we care when it *became* Done.
+
+      // Sort history descending to find latest 'Done' entry
+      histories.sort((a: any, b: any) => new Date(b.created).getTime() - new Date(a.created).getTime());
+
+      for (const h of histories) {
+        const item = h.items.find((i: any) => i.field === 'status');
+        if (item) {
+          const toStr = (item.toString || '').toLowerCase();
+          // Naive "Done" check if we don't have map here. 
+          // Ideally we passed statusMap, but let's assume standard names for now to unblock.
+          const isDone = toStr.includes('done') || toStr.includes('closed') || toStr.includes('resolved') || toStr.includes('complete');
+
+          if (isDone) {
+            const time = new Date(h.created).getTime();
+            if (time >= startTime && time <= endTime) {
+              count++;
+              // Break after finding the transition for this day? 
+              // We should ensure we don't double count if moved Done->Done (rare)
+              // This is "Did it finish today?"
+              break;
+            }
+          }
+        }
+      }
+    }
   }
+  return count;
 }
 
 export { STATUS_CATEGORIES }

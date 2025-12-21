@@ -91,6 +91,8 @@ export interface TelemetryData {
   wipConsistency?: number // New: Stability of WIP (lower is better, or just standard deviation)
   wipConsistencyExplanation?: string
 
+  flowEfficiency?: number // Percentage of actively worked items (not stalled)
+
   teamBurnout?: Record<string, number>
   issuesByStatus?: { todo: number; inProgress: number; done: number }
   completion?: number // Percentage complete (for Scrum/Business)

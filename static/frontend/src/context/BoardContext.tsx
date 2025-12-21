@@ -1,31 +1,23 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
-
-export type BoardType = 'scrum' | 'kanban' | 'business'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { InternalContext, DEFAULT_CONTEXT, ProjectType, BoardStrategy, AgileCapability, EstimationMode, MetricValidity } from '../types/Context';
 
 export interface BoardContextType {
-  boardType: BoardType
-  boardId?: number
-  boardName: string
-  sprintName?: string
-  sprintStatus?: string
-  capabilities: {
-    hasSprints: boolean
-    hasBacklog: boolean
-    hasEstimation: boolean
-    hasReports: boolean
-  }
-  setBoardContext: (data: any) => void
+  // STRICT CONTEXT
+  context: InternalContext;
+
+  // METADATA
+  boardId?: number;
+  boardName: string;
+  sprintName?: string;
+  sprintStatus?: string;
+
+  // ACTIONS
+  setBoardContext: (data: any) => void;
 }
 
 const defaultContext: BoardContextType = {
-  boardType: 'scrum',
+  context: DEFAULT_CONTEXT,
   boardName: 'Board',
-  capabilities: {
-    hasSprints: true,
-    hasBacklog: true,
-    hasEstimation: true,
-    hasReports: true
-  },
   setBoardContext: () => { }
 }
 
@@ -34,31 +26,27 @@ const BoardContext = createContext<BoardContextType>(defaultContext)
 export const useBoardContext = () => useContext(BoardContext)
 
 export const BoardContextProvider = ({ children }: { children: React.ReactNode }) => {
-  const [contextState, setContextState] = useState<Partial<BoardContextType>>({})
+  const [state, setState] = useState<Partial<BoardContextType>>({})
 
-  const setBoardContext = (data: any) => {
-    // Infer capabilities from data
-    const boardType = data.boardType || 'scrum'
-    const capabilities = {
-      hasSprints: boardType === 'scrum',
-      hasBacklog: boardType !== 'business', // Simplistic assumption
-      hasEstimation: boardType !== 'business',
-      hasReports: true
-    }
+  const setBoardContext = useCallback((data: any) => {
+    // Expecting full context structure from backend
+    // If backend sends legacy data, we might need a migration/adapter here, but we strive for clean cut.
 
-    setContextState({
-      boardType,
+    // Check if we received the strict context object
+    const incomingContext = data.context || DEFAULT_CONTEXT;
+
+    setState({
+      context: incomingContext,
       boardId: data.boardId,
       boardName: data.boardName || 'Board',
       sprintName: data.sprintName,
-      sprintStatus: data.sprintStatus || data.healthStatus,
-      capabilities
+      sprintStatus: data.sprintStatus || data.healthStatus
     })
-  }
+  }, [])
 
   const value = {
     ...defaultContext,
-    ...contextState,
+    ...state,
     setBoardContext
   }
 

@@ -30,7 +30,7 @@ export class ThroughputCalculator {
             return {
                 rate: completedIssues.length,
                 explanation: `exp:throughputTotal:days=${Math.round(diffDays)}`,
-                window: `${Math.round(diffDays)} days`
+                window: `${Math.round(diffDays)} ${Math.round(diffDays) === 1 ? 'day' : 'days'}`
             };
         }
 

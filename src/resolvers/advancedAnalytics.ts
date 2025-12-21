@@ -9,7 +9,6 @@
  * - Smart Capacity Analysis
  */
 
-import api, { route } from '@forge/api'
 import type { JiraIssue, StatusCategoryKey } from '../types/jira'
 
 // ============================================================================
@@ -93,9 +92,13 @@ export function calculateSprintHealth(
     sprintStartDate: Date | null,
     sprintEndDate: Date | null,
     historicalVelocity: number = 20,
-    storyPointsField: string = 'customfield_10040'
+    storyPointsFields: string[] = [],
+    boardType: string = 'scrum'
 ): SprintHealthPrediction {
     const now = new Date()
+
+    // Context-aware Terminology
+    const isScrum = boardType === 'scrum'
 
     // Calculate completion metrics
     const doneIssues = issues.filter(i => i.fields.status?.statusCategory?.key === 'done')
@@ -104,49 +107,80 @@ export function calculateSprintHealth(
     const stalledCount = issues.filter(i => isStalled(i)).length
 
     // Story points calculation
-    const getPoints = (issue: JiraIssue) => (issue.fields as any)[storyPointsField] || 0
-    const completedPoints = doneIssues.reduce((sum, i) => sum + getPoints(i), 0)
-    const totalPoints = issues.reduce((sum, i) => sum + getPoints(i), 0) || totalIssues
+    const getPoints = (issue: JiraIssue) => {
+        if (!storyPointsFields || storyPointsFields.length === 0) return 0;
+        for (const f of storyPointsFields) {
+            const v = (issue.fields as any)[f];
+            if (typeof v === 'number') return v;
+        }
+        return 0;
+    };
+
+    const isPointsMode = storyPointsFields && storyPointsFields.length > 0;
+    const completedPoints = doneIssues.reduce((sum, i) => sum + getPoints(i), 0);
+    const totalPoints = issues.reduce((sum, i) => sum + getPoints(i), 0);
+
+    // Progress metrics - fallback to counts only if explicitly no points found and it's not a restricted project
+    // Actually, clean logic: if points mode and total points > 0, use points. Else use counts.
+    const usePoints = isPointsMode && totalPoints > 0;
+    const actualProgress = usePoints ? (completedPoints / totalPoints) : (doneIssues.length / (totalIssues || 1));
 
     // Time factor
-    let timeFactor = 0.5
+    let timeFactor = 1.0;
     if (sprintStartDate && sprintEndDate) {
-        const sprintDuration = sprintEndDate.getTime() - sprintStartDate.getTime()
-        const elapsed = now.getTime() - sprintStartDate.getTime()
-        const remaining = Math.max(0, sprintEndDate.getTime() - now.getTime())
-        const daysRemaining = remaining / (1000 * 60 * 60 * 24)
+        const sprintDuration = sprintEndDate.getTime() - sprintStartDate.getTime();
+        const elapsed = now.getTime() - sprintStartDate.getTime();
 
-        // Expected progress based on time
-        const expectedProgress = Math.min(1, elapsed / sprintDuration)
-        const actualProgress = completedPoints / totalPoints
+        // Expected progress based on time elapsed
+        const expectedProgress = Math.min(1, Math.max(0, elapsed / sprintDuration));
 
-        // Time factor: how well are we tracking against time?
-        timeFactor = actualProgress / (expectedProgress || 0.1)
+        // timeFactor > 1 means ahead of schedule, < 1 means behind
+        // We use a safe floor for expectedProgress to avoid division by zero
+        timeFactor = actualProgress / (expectedProgress || 0.1);
+
+        // Cap timeFactor to reasonable range for scoring (0.0 to 2.0)
+        timeFactor = Math.min(2.0, timeFactor);
     }
 
-    // Velocity factor
-    const currentVelocity = completedPoints
-    const velocityFactor = historicalVelocity > 0
-        ? Math.min(1.5, currentVelocity / historicalVelocity)
-        : 0.5
+    // Velocity / Pace factor (normalized to historical or commitment)
+    // If we completed 10 points and historical is 20, but we are only 25% through, pace is good.
+    // expectedVelocityAtThisTime = historicalVelocity * expectedProgress
+    let velocityFactor = 1.0;
+    if (sprintStartDate && sprintEndDate && historicalVelocity > 0) {
+        const sprintDuration = sprintEndDate.getTime() - sprintStartDate.getTime();
+        const elapsed = now.getTime() - sprintStartDate.getTime();
+        const expectedProgress = Math.min(1, Math.max(0, elapsed / sprintDuration));
+
+        const targetNow = historicalVelocity * expectedProgress;
+        velocityFactor = targetNow > 0 ? (completedPoints || doneIssues.length) / targetNow : 1.0;
+    } else if (historicalVelocity > 0) {
+        velocityFactor = (completedPoints || doneIssues.length) / historicalVelocity;
+    }
+    velocityFactor = Math.min(1.5, Math.max(0, velocityFactor));
 
     // Stalled factor (inverse - more stalled = lower score)
-    const stalledRatio = totalIssues > 0 ? stalledCount / totalIssues : 0
-    const stalledFactor = 1 - stalledRatio
+    const stalledRatio = totalIssues > 0 ? stalledCount / totalIssues : 0;
+    const stalledFactor = Math.max(0, 1 - (stalledRatio * 2)); // Aggressive penalty for stalled items
 
-    // Scope factor (WIP to done ratio)
-    const wipRatio = totalIssues > 0 ? inProgressIssues.length / totalIssues : 0
-    const scopeFactor = 1 - (wipRatio * 0.5) // Penalize high WIP
+    // Scope factor (Commitment vs Capacity)
+    // Also penalize extreme WIP
+    const wipRatio = totalIssues > 0 ? inProgressIssues.length / totalIssues : 0;
+    const wipPenalty = wipRatio > 0.5 ? (wipRatio - 0.5) : 0; // Penalty starts after 50% WIP
+    const scopeFactor = Math.max(0, 1 - wipPenalty);
 
-    // Combined score
+    // Combined score (Weighted)
+    // Time tracking is most important for health (35%)
+    // Pace relative to history (25%)
+    // Blocking/Stalling (25%)
+    // WIP/Process health (15%)
     const rawScore = (
-        (velocityFactor * 0.3) +
-        (timeFactor * 0.3) +
+        (timeFactor * 0.35) +
+        (velocityFactor * 0.25) +
         (stalledFactor * 0.25) +
         (scopeFactor * 0.15)
-    ) * 100
+    ) * 100;
 
-    const score = Math.min(100, Math.max(0, Math.round(rawScore)))
+    const score = Math.min(100, Math.max(0, Math.round(rawScore)));
 
     // Determine status and message
     let status: SprintHealthPrediction['status']
@@ -155,17 +189,23 @@ export function calculateSprintHealth(
 
     if (score >= 80) {
         status = 'GREEN_FLAG'
-        message = 'Sprint on track for podium finish! Maintain current pace.'
+        message = isScrum
+            ? 'Sprint on track for podium finish! Maintain current pace.'
+            : 'Flow stable. Green flag conditions.'
         recommendation = 'Keep pushing. No intervention needed.'
     } else if (score >= 50) {
         status = 'YELLOW_FLAG'
-        message = 'Pace dropping. Tire degradation detected.'
+        message = isScrum
+            ? 'Pace dropping. Tire degradation detected.'
+            : 'Throughput degradation detected. Pace dropping.'
         recommendation = stalledCount > 0
             ? `Address ${stalledCount} stalled issue(s) immediately.`
             : 'Review WIP and consider pairing on complex items.'
     } else {
         status = 'RED_FLAG'
-        message = 'BOX BOX! Sprint at risk. Immediate intervention required.'
+        message = isScrum
+            ? 'Sprint at risk. Immediate intervention required.'
+            : 'Process stalled. Immediate intervention required.'
         recommendation = stalledCount > 2
             ? 'Critical: Triage stalled items. Consider scope reduction.'
             : 'Escalate blockers and redistribute workload.'
@@ -473,7 +513,7 @@ export function analyzeTeamCapacity(
 export function detectScopeCreep(
     issues: JiraIssue[],
     sprintStartDate: Date | null,
-    storyPointsField: string = 'customfield_10040'
+    storyPointsFields: string[] = []
 ): { detected: boolean; addedCount: number; addedPoints: number; message: string } {
     if (!sprintStartDate) {
         return { detected: false, addedCount: 0, addedPoints: 0, message: 'No sprint start date available' }
@@ -487,19 +527,25 @@ export function detectScopeCreep(
     })
 
     const addedCount = addedAfterStart.length
-    const addedPoints = addedAfterStart.reduce((sum, i) =>
-        sum + ((i.fields as any)[storyPointsField] || 0), 0
-    )
+    const addedPoints = addedAfterStart.reduce((sum, i) => {
+        if (!storyPointsFields.length) return sum;
+        let v = 0;
+        for (const f of storyPointsFields) {
+            const val = (i.fields as any)[f];
+            if (typeof val === 'number') { v = val; break; }
+        }
+        return sum + v;
+    }, 0);
 
     const detected = addedCount >= 2 || addedPoints >= 5
 
     let message: string
     if (!detected) {
-        message = 'Sprint scope stable. No significant additions.'
+        message = 'Scope stable. No significant additions.'
     } else if (addedCount <= 3) {
-        message = `Minor scope creep: ${addedCount} issue(s) added mid-sprint.`
+        message = `Minor scope increase: ${addedCount} issue(s) added.`
     } else {
-        message = `⚠️ Significant scope creep: ${addedCount} issues (${addedPoints} pts) added mid-sprint!`
+        message = `⚠️ Significant scope increase: ${addedCount} issues (${addedPoints} pts) added during period!`
     }
 
     return { detected, addedCount, addedPoints, message }
@@ -574,19 +620,20 @@ export async function getAdvancedAnalytics(
         historicalVelocity?: number
         stalledThresholdHours?: number
         wipLimitPerPerson?: number
-        storyPointsField?: string
-    } = {}
+        storyPointsFields?: string[]
+    } = {},
+    boardType: string = 'scrum'
 ): Promise<AdvancedAnalytics> {
     const {
         historicalVelocity = 20,
         stalledThresholdHours = 24,
         wipLimitPerPerson = 3,
-        storyPointsField = 'customfield_10040'
+        storyPointsFields = []
     } = config
 
     // Calculate all analytics
     const sprintHealth = calculateSprintHealth(
-        issues, sprintStartDate, sprintEndDate, historicalVelocity, storyPointsField
+        issues, sprintStartDate, sprintEndDate, historicalVelocity, storyPointsFields, boardType
     )
 
     const preStallWarnings = detectPreStallWarnings(issues, stalledThresholdHours)
@@ -597,7 +644,7 @@ export async function getAdvancedAnalytics(
 
     const teamCapacity = analyzeTeamCapacity(issues, wipLimitPerPerson)
 
-    const scopeCreep = detectScopeCreep(issues, sprintStartDate, storyPointsField)
+    const scopeCreep = detectScopeCreep(issues, sprintStartDate, storyPointsFields)
 
     return {
         sprintHealth,

@@ -36,9 +36,14 @@ export class GetFlowMetricsUseCase {
         const distribution = this.flowScanner.calculateDistribution(issues);
 
         // Velocity
+        // STRICT CONTEXT ENFORCEMENT
+        // If board strategy is not Scrum, velocity is effectively N/A (or 0)
+        // We do not want to mislead users with "Throughput labeled as Velocity"
+        const isScrum = context?.boardStrategy === 'scrum';
+
         const completedIssues = issues.filter(i => i.statusCategory.isDone);
         const velocity = {
-            completed: completedIssues.length,
+            completed: isScrum ? completedIssues.length : 0, // Only show for Scrum
             period: boardData.sprint?.name || boardData.boardName || 'Current Period',
             trend: 'stable' as const,
             changePercent: 0

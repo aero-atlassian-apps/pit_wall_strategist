@@ -2,15 +2,16 @@ import React from 'react'
 import styled from 'styled-components'
 
 interface MetricProps {
-    label: string
-    value: string | number
-    unit?: string
-    trend?: {
-        value?: number | string
-        direction: 'up' | 'down' | 'neutral'
-        isGood?: boolean // if true, 'up' is green. if false, 'up' is red.
-    }
-    variant?: 'primary' | 'secondary'
+  label: string
+  value: string | number
+  unit?: string
+  trend?: {
+    value?: number | string
+    direction: 'up' | 'down' | 'neutral'
+    isGood?: boolean // if true, 'up' is green. if false, 'up' is red.
+  }
+  variant?: 'primary' | 'secondary'
+  footer?: React.ReactNode
 }
 
 const Card = styled.div<{ $variant: 'primary' | 'secondary' }>`
@@ -71,14 +72,21 @@ const Label = styled.div`
   text-align: center;
 `
 
-export const MetricCard: React.FC<MetricProps> = ({ label, value, unit, variant = 'secondary' }) => {
-    return (
-        <Card $variant={variant}>
-            <ValueLayout>
-                <Value $variant={variant}>{value}</Value>
-                {unit && <Unit>{unit}</Unit>}
-            </ValueLayout>
-            <Label>{label}</Label>
-        </Card>
-    )
+const Footer = styled.div`
+  margin-top: 4px;
+  font-size: 10px;
+  font-family: var(--font-stack-mono);
+`
+
+export const MetricCard: React.FC<MetricProps> = ({ label, value, unit, variant = 'secondary', footer }) => {
+  return (
+    <Card $variant={variant}>
+      <ValueLayout>
+        <Value $variant={variant}>{value}</Value>
+        {unit && <Unit>{unit}</Unit>}
+      </ValueLayout>
+      <Label>{label}</Label>
+      {footer && <Footer>{footer}</Footer>}
+    </Card>
+  )
 }

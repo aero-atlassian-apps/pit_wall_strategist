@@ -1,67 +1,314 @@
 # Pit Wall Strategist — Architecture Reference
 
 ## Overview
-Pit Wall Strategist is an Atlassian Forge app with a React/Vite UI that monitors Jira sprint/flow telemetry, flags stalled work, and proposes actions (split, reassign, defer). It supports dual platform modes: Atlassian (real APIs) and Local (mocked).
+
+Pit Wall Strategist is an Atlassian Forge app implementing **Clean Architecture** with a React/Vite UI. It monitors Jira sprint/flow telemetry, flags stalled work, and proposes F1-themed strategic actions via a Rovo AI agent. Supports Scrum, Kanban, and Jira Work Management (Business) projects.
+
+## Clean Architecture Layers
+
+```mermaid
+graph TB
+    subgraph Interface["Interface Layer (Resolvers)"]
+        R[Forge Resolvers]
+        A[Action Handlers]
+    end
+    
+    subgraph Application["Application Layer"]
+        UC[Use Cases]
+        P[Policies]
+    end
+    
+    subgraph Domain["Domain Layer (Pure)"]
+        E[Entities]
+        VO[Value Objects]
+        M[Metric Calculators]
+    end
+    
+    subgraph Infrastructure["Infrastructure Layer"]
+        JR[Jira Repositories]
+        S[Services]
+        FA[Forge Adapters]
+    end
+    
+    R --> UC
+    UC --> M
+    UC --> JR
+    JR --> S
+    S --> FA
+    
+    style Domain fill:#39FF14,color:#000
+    style Application fill:#BF5AF2,color:#fff
+    style Infrastructure fill:#F4D03F,color:#000
+    style Interface fill:#FF0033,color:#fff
+```
+
+### Layer Dependencies (Strict Rules)
+
+| Layer | Can Import From | Cannot Import From |
+|-------|-----------------|-------------------|
+| **Domain** | Nothing external | Forge, Jira SDK, Infrastructure |
+| **Application** | Domain | Forge directly |
+| **Infrastructure** | Domain, Forge API | Application |
+| **Interface** | Application, Infrastructure | — |
+
+---
+
+## Domain Layer (`src/domain/`)
+
+Pure business logic with **no Forge or Jira SDK imports**.
+
+### Entities & Value Objects
+
+| Module | Purpose |
+|--------|---------|
+| `issue/DomainIssue.ts` | Domain representation of a Jira issue |
+| `issue/JiraStatusCategory.ts` | Value object: `TO_DO`, `IN_PROGRESS`, `DONE` |
+| `flow/FlowCategory.ts` | SAFe flow types: features, defects, risks, debt |
+| `board/BoardContext.ts` | Board type enumeration and context |
+
+### Metric Calculators
+
+| Calculator | Responsibility |
+|------------|----------------|
+| `metrics/CycleTimeCalculator.ts` | Changelog-based cycle time with resolution fallback |
+| `metrics/VelocityCalculator.ts` | Sprint velocity with per-assignee breakdown |
+| `metrics/ThroughputCalculator.ts` | Flow throughput for Kanban |
+| `metrics/WipAnalysis.ts` | Work-in-progress analysis |
+| `metrics/SprintHealthMetric.ts` | Sprint health scoring |
+
+---
+
+## Application Layer (`src/application/`)
+
+Use cases and orchestration logic.
+
+| Module | Purpose |
+|--------|---------|
+| `usecases/GetFlowMetricsUseCase.ts` | Orchestrates flow metrics collection |
+| `diagnostics/DiagnosticsUseCase.ts` | Health check orchestration |
+| `rovo/RovoChatExpertSystem.ts` | AI chat intent detection and response |
+
+---
+
+## Infrastructure Layer (`src/infrastructure/`)
+
+External system adapters using Forge API.
+
+### Jira Repositories
+
+| Repository | Responsibility |
+|------------|----------------|
+| `jira/JiraBoardRepository.ts` | Board data with multi-level fallbacks |
+| `jira/JiraDataService.ts` | Low-level Jira API calls |
+
+### Services
+
+| Service | Responsibility |
+|---------|----------------|
+| `services/IssueSearchService.ts` | Token-paginated JQL search with retry |
+| `services/BoardDiscoveryService.ts` | Project type & board type detection |
+| `services/StatusMapService.ts` | Per-project status category resolution |
+| `services/FieldDiscoveryService.ts` | Custom field discovery (Story Points, Sprint) |
+| `services/SecurityGuard.ts` | Permission validation |
+| `services/LegacyTelemetryAdapter.ts` | Adapter bridging old patterns to new architecture |
+
+### Authentication Policy
+
+- **Read operations**: `asApp()` first, fallback to `asUser()` on 401/403
+- **Write operations**: Always `asUser()` to ensure user authorization
+
+---
+
+## Interface Layer (`src/resolvers/`)
+
+Forge resolver handlers organized by domain.
+
+### Resolver Modules
+
+| Module | Resolvers |
+|--------|-----------|
+| `config/ConfigResolvers.ts` | View mode, theme, board selection |
+| `telemetry/TelemetryResolvers.ts` | Dashboard telemetry data |
+| `diagnostics/DiagnosticsResolvers.ts` | Health checks, permissions |
+| `timing/TimingResolvers.ts` | Lead time, cycle time metrics |
+| `trends/TrendResolvers.ts` | WIP and velocity trends |
+| `analytics/AnalyticsResolvers.ts` | Advanced analytics, flow metrics |
+| `rovo/RovoResolvers.ts` | AI chat, analysis |
+| `actions/ActionResolvers.ts` | 10 Rovo strategic actions |
+
+### Rovo Actions (10 Strategies)
+
+| Action Key | F1 Name | Jira Operation |
+|------------|---------|----------------|
+| `split-ticket` | The Undercut | Create subtasks |
+| `reassign-ticket` | Team Orders | Update assignee |
+| `defer-ticket` | Retire Car | Move to backlog |
+| `change-priority` | Blue Flag | Update priority |
+| `transition-issue` | Push to Limit | Transition status |
+| `add-blocker-flag` | Red Flag | Add blocked label/flag |
+| `link-issues` | Slipstream | Create issue link |
+| `update-estimate` | Fuel Adjustment | Update story points |
+| `add-radio-message` | Radio Message | Add comment |
+| `create-subtask` | Pit Crew Task | Create subtask |
+
+---
 
 ## Platform Modes
-- Backend `PLATFORM`: `local` bypasses Jira and returns mocks; `atlassian` calls Jira/Agile/DevStatus APIs (`src/resolvers/index.ts`:12,21,55,71,85).
-- Frontend `VITE_PLATFORM`: switches between `@forge/bridge` and local mocks; Vite alias disables the bridge when not Atlassian (`static/frontend/vite.config.ts`:4,12–14).
 
-## Backend Layers
-- Resolver registry: registers endpoints and exports `handler` and `actionHandler` (`src/resolvers/index.ts`:11,156–157).
-- Telemetry pipeline:
-  - Custom fields discovery (Story Points/Sprint/Epic Link) with fallbacks (`src/resolvers/telemetryUtils.ts`:8–11).
-  - Board detection (Scrum/Kanban) and selection (`src/resolvers/telemetryUtils.ts`:15–28).
-  - Scrum sprint data with layered fallbacks preferring JQL POST to avoid Agile 401s (`src/resolvers/telemetryUtils.ts`:41–64,66–94,101–110,111–149).
-  - Kanban data via board issues (`src/resolvers/telemetryUtils.ts`:157).
-  - Telemetry metrics (WIP load, burnout, velocity delta, sprint status) (`src/resolvers/telemetryUtils.ts`:159–184).
-  - Stalled detection and categorization (`src/resolvers/telemetryUtils.ts`:195–203).
-- Timing metrics:
-  - Lead time from `DONE` issues; by-assignee breakdown (`src/resolvers/timingMetrics.ts`:7–16).
-  - Cycle time from changelog transitions; 3 sectors mapped to status categories (`src/resolvers/timingMetrics.ts`:18–27,29–49,51–53).
-  - Sector performance evaluation (`src/resolvers/timingMetrics.ts`:55).
-- Trend metrics:
-  - WIP trend: daily in-progress counts (`src/resolvers/trendMetrics.ts`:6–15).
-  - Velocity trend: daily resolution counts (`src/resolvers/trendMetrics.ts`:19–34).
-- DevOps detection:
-  - Project connectivity and source (Bitbucket/GitHub) (`src/resolvers/devOpsDetection.ts`:39–58).
-  - Per-issue dev activity and “no commits/PRs” detection (`src/resolvers/devOpsDetection.ts`:17–37).
-- Action handlers:
-  - Split, Reassign, Defer with Jira mutations; mock results in local mode (`src/resolvers/rovoActions.ts`:3–7,5–21,23–31,33–41).
+| Mode | Backend (`PLATFORM`) | Frontend (`VITE_PLATFORM`) |
+|------|----------------------|---------------------------|
+| **Atlassian** | Real Jira API calls | `@forge/bridge` |
+| **Local** | Mock data | Local shim |
 
-## Frontend Layers
-- Bootstrap with CSP nonce handling for styled-components (`static/frontend/src/index.tsx`:12–21,23–35).
-- App composition and data loading across telemetry/issues/timing/trends/devops with error diagnostics (`static/frontend/src/App.tsx`:51–63,64–97).
-- Strategy modal and action invocation via resolver keys (`static/frontend/src/App.tsx`:99–101,135–140).
-- UI components: Dashboard panels, TrackMap, RaceControl, DevOpsPanel, Settings; theme and global styles.
-- Local shim for Forge bridge to enforce mocks (`static/frontend/src/shims/forge-bridge.ts`:1–3).
+---
 
 ## Data Flow
-1. Frontend determines mode via `VITE_PLATFORM` and either calls resolver endpoints using `@forge/bridge` or loads mocks (`static/frontend/src/App.tsx`:18–21,54–63).
-2. `getTelemetryData` orchestrates board detection, sprint/kanban issue retrieval, telemetry calculation, stalled detection, and builds an F1-styled feed (`src/resolvers/index.ts`:18–33,138–151).
-3. `getSprintIssues` categorizes issues and flags stalled (`src/resolvers/index.ts`:35–46).
-4. `getTimingMetrics` produces lead time, cycle time, sector performance (`src/resolvers/index.ts`:52–67).
-5. `getTrendData` returns WIP/velocity trends (`src/resolvers/index.ts`:69–80).
-6. `getDevOpsStatus` checks DevOps connectivity and surface issues lacking recent activity (`src/resolvers/index.ts`:82–96).
-7. User triggers actions via Strategy modal; backend executes Jira mutations (`src/resolvers/index.ts`:121–123; `src/resolvers/rovoActions.ts`:5–41).
+
+```mermaid
+sequenceDiagram
+    participant UI as Frontend
+    participant R as Resolvers
+    participant UC as Use Cases
+    participant Repo as Repositories
+    participant Jira as Jira API
+
+    UI->>R: getTelemetryData(projectKey)
+    R->>Repo: getBoardData(projectKey)
+    Repo->>Jira: detectBoardType()
+    Repo->>Jira: fetchIssues() [with fallbacks]
+    Repo-->>R: BoardData
+    R->>UC: calculateMetrics(boardData)
+    UC-->>R: TelemetryData
+    R-->>UI: Dashboard payload
+```
+
+### Fallback Chain (Scrum)
+
+1. Active sprint issues
+2. Future sprint issues  
+3. `openSprints()` JQL
+4. Board filter JQL
+5. Project JQL (last resort)
+
+---
+
+## Metric Validity System
+
+The app uses a **context-aware metric validity system** to show/hide metrics based on project type and board strategy.
+
+```mermaid
+flowchart TB
+    subgraph Context[Context Detection]
+        PT[Project Type Detection]
+        BS[Board Strategy Detection]
+    end
+    
+    subgraph Engine[Context Engine]
+        MV[computeMetricValidity]
+    end
+    
+    subgraph Metrics[Metric Categories]
+        SM[Sprint Metrics]
+        FM[Flow Metrics]
+    end
+    
+    PT --> Engine
+    BS --> Engine
+    Engine --> SM
+    Engine --> FM
+    
+    SM --> |Scrum| V1[velocity: valid]
+    SM --> |Kanban/Business| V2[velocity: hidden]
+    FM --> |All| V3[cycleTime: valid]
+```
+
+### Metric Validity Rules
+
+| Context | Sprint Metrics | Flow Metrics |
+|---------|---------------|--------------|
+| **Scrum (Software)** | ✅ All visible | ✅ All visible |
+| **Kanban (Software)** | ❌ Hidden | ✅ All visible |
+| **Business (JWM)** | ❌ Hidden | ✅ All visible |
+
+### 10 Tracked Metrics
+
+| Category | Metric | Description |
+|----------|--------|-------------|
+| Sprint | `velocity` | Story points per sprint |
+| Sprint | `sprintHealth` | Sprint progress vs expected |
+| Sprint | `sprintProgress` | Completion percentage |
+| Sprint | `scopeCreep` | Scope changes mid-sprint |
+| Flow | `wip` | Work in progress count |
+| Flow | `wipConsistency` | WIP stability over time |
+| Flow | `cycleTime` | Time from start to done |
+| Flow | `leadTime` | Time from creation to done |
+| Flow | `throughput` | Items completed per period |
+| Flow | `flowEfficiency` | Active WIP / Total WIP |
+
+---
 
 ## Error Handling & Resilience
-- Prefer JQL POST as user for sprint and board queries to avoid Agile 401s; fall back to app when needed (`src/resolvers/telemetryUtils.ts`:101–110,207–236,237–255).
-- Multi-layer fallbacks: active sprint → future sprint → openSprints JQL → board filter JQL → project JQL (`src/resolvers/telemetryUtils.ts`:41–64,66–94,111–149).
-- Frontend displays Notice with permission diagnostics (`static/frontend/src/App.tsx`:116–121).
 
-## Permissions & Manifest
-- `jira:projectPage` and `rovo:agent` modules render UI and expose actions (`manifest.yml`:22–33,2–20,35–76,77–79).
-- Scopes include board/sprint, issue read/write, storage (`manifest.yml`:81–95).
-- CSP permits inline styles and external fonts/styles (`manifest.yml`:96–105).
+- **JQL POST preferred** over deprecated GET endpoints
+- **Token-based pagination** for large result sets
+- **Retry with exponential backoff** on transient failures
+- **Permission validation** before data access
+- **Graceful degradation** when Agile features unavailable
+
+---
 
 ## Testing Architecture
-- Vitest node environment with v8 coverage targeting backend resolvers (`vitest.config.ts`:3–9).
-- Integration tests verify resolver definitions and local mode behaviors; e2e scaffold with Playwright exists.
+
+| Type | Location | Framework |
+|------|----------|-----------|
+| Unit | `tests/unit/` | Vitest |
+| Integration | `tests/integration/` | Vitest |
+| E2E | `tests/e2e/` | Playwright |
+
+**Coverage areas**: Telemetry, fallbacks, flow heuristics, status mapping, field discovery, timing metrics.
+
+---
+
+## Manifest Configuration
+
+- **Module**: `jira:projectPage` for dashboard UI
+- **Module**: `rovo:agent` for AI agent with 10 actions
+- **Scopes**: `read:issue`, `write:issue`, `read:sprint`, `read:board-scope`, `storage:app`
+- **CSP**: Inline styles permitted
+
+---
 
 ## Known Limitations
-- Board selection defaults to first board when multiple exist (`src/resolvers/telemetryUtils.ts`:24–28).
-- Cycle time sampling uses only first ten issues.
-- Action handlers assume `Sub-task` issuetype and sufficient permissions.
 
-y
+1. **Multiple boards**: Selects first board with active sprint
+2. **Cycle time sampling**: Uses changelog when available, falls back to resolution date
+3. **Subtask creation**: Dynamically discovers subtask issue type name
+
+---
+
+## File Structure
+
+```
+src/
+├── domain/           # Pure business logic (NO Forge imports)
+│   ├── board/        # Board context types
+│   ├── flow/         # SAFe flow categories
+│   ├── issue/        # DomainIssue, JiraStatusCategory
+│   ├── metrics/      # Calculators (CycleTime, Velocity, Throughput)
+│   └── ...
+├── application/      # Use cases and orchestration
+│   └── usecases/     # GetFlowMetricsUseCase
+├── infrastructure/   # External adapters
+│   ├── jira/         # JiraBoardRepository, JiraDataService
+│   ├── services/     # StatusMapService, FieldDiscoveryService
+│   └── forge/        # Forge-specific adapters
+└── resolvers/        # Interface layer (Forge resolver handlers)
+    ├── config/
+    ├── telemetry/
+    ├── diagnostics/
+    ├── timing/
+    ├── trends/
+    ├── analytics/
+    ├── rovo/
+    └── actions/
+```

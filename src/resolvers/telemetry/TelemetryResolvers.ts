@@ -10,7 +10,7 @@
  */
 
 import { JiraBoardRepository } from '../../infrastructure/jira/JiraBoardRepository';
-import { LegacyTelemetryAdapter } from '../../infrastructure/services/LegacyTelemetryAdapter';
+import { TelemetryService } from '../../infrastructure/services/TelemetryService';
 import { StatusMapService } from '../../infrastructure/services/StatusMapService';
 import { getEffectiveConfig } from '../config/ConfigResolvers';
 import { mockTelemetry, mockIssues } from '../mocks';
@@ -18,6 +18,7 @@ import { getFetchStatuses } from '../fetchStatus';
 import { getBoardColumns, mapStatusToColumn } from '../timingMetrics';
 import { getProjectContext, getContextSummary } from '../contextEngine';
 import type { TelemetryConfig, TelemetryData, CategorizedIssue, BoardData, StalledTicket } from '../../types/telemetry';
+import { InternalContext } from '../../domain/types/Context';
 
 const PLATFORM = process.env.PLATFORM || 'atlassian';
 const boardRepository = new JiraBoardRepository();
@@ -44,15 +45,6 @@ function generateFeed(
     const now = new Date();
     const raceType = boardType === 'kanban' ? dict.raceStartEndurance : dict.raceStartSprint;
     feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 4), locale), msg: dict.greenFlagStarted.replace('{race}', raceType), type: 'info' });
-    if (telemetry.velocitySource || telemetry.velocityWindow) {
-        const src = telemetry.velocitySource || 'unknown';
-        const win = telemetry.velocityWindow || 'unknown';
-        feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 3.5), locale), msg: `Diagnostics: velocitySource=${src}, window=${win}`, type: 'info' });
-    }
-    if (fetchStatuses && fetchStatuses.length) {
-        const recent = fetchStatuses.slice(-3).map(s => `${s.ok ? 'OK' : 'ERR'} ${s.status ?? ''} ${s.endpoint}`).join(' | ');
-        feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 3.25), locale), msg: `Fetch Status: ${recent}`, type: 'info' });
-    }
     const wipLoad = telemetry.wipLoad ?? 0;
     if (wipLoad < 80) feed.push({ time: formatTime(new Date(now.getTime() - 3600000 * 2), locale), msg: dict.sectorClear, type: 'success' });
     if (wipLoad >= 80 && wipLoad < 100) feed.push({ time: formatTime(new Date(now.getTime() - 3600000), locale), msg: dict.fuelWarn, type: 'warning' });
@@ -78,40 +70,60 @@ export function registerTelemetryResolvers(resolver: any): void {
         try {
             const userConfig = await getEffectiveConfig(context, payload);
             console.log('[ENTRY] getTelemetryData for project:', context?.extension?.project?.key);
+
             if (PLATFORM === 'local') return { success: true, data: mockTelemetry() };
+
             const projectKey = context.extension.project.key as string;
-            await LegacyTelemetryAdapter.discoverCustomFields();
+            await TelemetryService.discoverCustomFields();
             const statusMap = await statusMapService.getProjectStatusMap(projectKey);
+
+            // Get Strict Context
+            // Cast to InternalContext by ensuring nulls are undefined
+            const boardId = payload?.boardId ? parseInt(String(payload.boardId)) : undefined;
+            const baseCtx = await getProjectContext(projectKey, boardId);
+            const ctx: InternalContext = {
+                ...baseCtx,
+                sprintId: baseCtx.sprintId ?? undefined,
+                boardId: baseCtx.boardId ?? undefined,
+                sprintName: baseCtx.sprintName ?? undefined
+            };
+
+            console.log(`[Context] ${ctx.projectType} | ${ctx.boardStrategy} | Est: ${ctx.estimationMode}`);
+
             const boardData: BoardData = await boardRepository.getBoardData(projectKey, userConfig, context);
-            const telemetry: TelemetryData = await LegacyTelemetryAdapter.calculateTelemetry(boardData, userConfig, statusMap);
-            const stalledTickets: StalledTicket[] = LegacyTelemetryAdapter.detectStalledTickets(boardData.issues, userConfig, statusMap);
-            console.log(`[Telemetry] Resolver Success. WIP: ${telemetry.wipCurrent}, Stalled: ${stalledTickets.length}`);
+            const telemetry: TelemetryData = await TelemetryService.calculateTelemetry(boardData, userConfig, ctx, statusMap);
+            const stalledTickets: StalledTicket[] = TelemetryService.detectStalledTickets(boardData.issues, userConfig, statusMap);
 
-            // Determine appropriate display name for the period
-            let periodName = boardData.boardName;
-            if (boardData.boardType === 'scrum' && boardData.sprint) {
-                periodName = boardData.sprint.name;
-            }
-
-            // Resolve locale (server-side i18n) without requiring asUser consent
-            const supported = ['en', 'fr', 'es', 'pt'] as const;
-            let locale: typeof supported[number] = 'en';
-            if (userConfig?.locale && (supported as readonly string[]).includes(userConfig.locale)) {
-                locale = userConfig.locale as typeof supported[number];
-            }
+            // Filter Metrics based on Strict Validity
+            // If metric is invalid, we null it out or mark it
+            if (ctx.metricValidity.velocity === 'hidden') telemetry.velocity = undefined;
+            if (ctx.metricValidity.sprintHealth === 'hidden') telemetry.healthStatus = undefined;
 
             const fetchStatuses = getFetchStatuses();
             const diagnostics = { velocitySource: telemetry.velocitySource, velocityWindow: telemetry.velocityWindow, fetchStatuses };
+
+            // Generate F1-style feed messages
+            const boardTypeForFeed = (ctx.projectType === 'business' ? 'business' : (ctx.boardStrategy === 'kanban' ? 'kanban' : 'scrum')) as 'scrum' | 'kanban' | 'business';
+            const feed = generateFeed(telemetry, stalledTickets, boardTypeForFeed, userConfig.locale as any, fetchStatuses);
+
             return {
                 success: true,
                 data: {
                     ...telemetry,
-                    boardId: boardData.boardId,
-                    sprintName: periodName,
+                    // Inject Strict Context for Frontend
+                    context: {
+                        projectType: ctx.projectType,
+                        boardStrategy: ctx.boardStrategy,
+                        agileCapability: ctx.agileCapability,
+                        estimationMode: ctx.estimationMode,
+                        metricValidity: ctx.metricValidity
+                    },
+                    boardId: ctx.boardId || boardData.boardId, // Prefer context boardId
+                    sprintName: ctx.sprintName || boardData.boardName,
                     stalledTickets,
                     diagnostics,
-                    feed: generateFeed(telemetry, stalledTickets, boardData.boardType, locale, fetchStatuses),
-                    alertActive: stalledTickets.length > 0
+                    alertActive: stalledTickets.length > 0,
+                    feed  // F1-style feed messages for Strategy Assistant
                 }
             };
         } catch (error: any) {
@@ -128,7 +140,7 @@ export function registerTelemetryResolvers(resolver: any): void {
             const projectKey = context.extension.project.key as string;
             const boardData: BoardData = await boardRepository.getBoardData(projectKey, userConfig, context);
             const statusMap = await statusMapService.getProjectStatusMap(projectKey);
-            const stalledTickets = LegacyTelemetryAdapter.detectStalledTickets(boardData.issues, userConfig, statusMap);
+            const stalledTickets = TelemetryService.detectStalledTickets(boardData.issues, userConfig, statusMap);
 
             const stalledKeys = new Set(stalledTickets.map(t => t.key));
             let columns: Array<{ name: string; statuses: Array<{ name: string }> }> = [];
@@ -150,7 +162,7 @@ export function registerTelemetryResolvers(resolver: any): void {
                 ];
             }
 
-            const categorizedIssues: CategorizedIssue[] = LegacyTelemetryAdapter.categorizeIssues(boardData.issues, statusMap).map(issue => {
+            const categorizedIssues: CategorizedIssue[] = TelemetryService.categorizeIssues(boardData.issues, statusMap).map(issue => {
                 let colName = mapStatusToColumn(issue.status, columns);
                 if (!colName && useFallback) {
                     if (issue.statusCategory === 'new') colName = 'To Do';
@@ -184,25 +196,36 @@ export function registerTelemetryResolvers(resolver: any): void {
         }
     });
 
-    resolver.define('getContext', async ({ context }: any) => {
+    resolver.define('getContext', async ({ payload, context }: any) => {
         try {
             const projectKey = context?.extension?.project?.key as string;
             if (!projectKey) return { success: false, error: 'No project context' };
-            const ctx = await getProjectContext(projectKey);
+            const boardId = payload?.boardId ? parseInt(String(payload.boardId)) : undefined;
+            const ctx = await getProjectContext(projectKey, boardId);
             return { success: true, context: ctx, summary: getContextSummary(ctx) };
         } catch (error: any) {
             return { success: false, error: error.message };
         }
     });
 
-    resolver.define('getTelemetryDiagnostics', async ({ context }: any) => {
+    resolver.define('getTelemetryDiagnostics', async ({ payload, context }: any) => {
         try {
             if (PLATFORM === 'local') return { success: true, diagnostics: { velocitySource: 'mock', velocityWindow: 'mock', fetchStatuses: [] } };
             const userConfig = await getEffectiveConfig(context);
             const projectKey = context.extension.project.key as string;
+            const boardId = payload?.boardId ? parseInt(String(payload.boardId)) : undefined;
+
+            const baseCtx = await getProjectContext(projectKey, boardId);
+            const ctx: InternalContext = {
+                ...baseCtx,
+                sprintId: baseCtx.sprintId ?? undefined,
+                boardId: baseCtx.boardId ?? undefined,
+                sprintName: baseCtx.sprintName ?? undefined
+            };
+
             const boardData: BoardData = await boardRepository.getBoardData(projectKey, userConfig, context);
             const statusMap = await statusMapService.getProjectStatusMap(projectKey);
-            const telemetry: TelemetryData = await LegacyTelemetryAdapter.calculateTelemetry(boardData, userConfig, statusMap);
+            const telemetry: TelemetryData = await TelemetryService.calculateTelemetry(boardData, userConfig, ctx, statusMap);
             const fetchStatuses = getFetchStatuses();
             return {
                 success: true,

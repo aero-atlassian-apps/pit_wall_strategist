@@ -13,9 +13,14 @@
   --color-green-400: #4ADE80;
   /* Go / Optimal */
   --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
   --color-yellow-400: #FACC15;
   /* Caution */
   --color-yellow-500: #eab308;
+  --color-blue-400: #60A5FA;
+  --color-blue-500: #3B82F6;
+  --color-purple-500: #A855F7;
+
   --color-slate-50: #F8FAFC;
   --color-slate-100: #F1F5F9;
   --color-slate-200: #E2E8F0;
@@ -39,29 +44,46 @@
   --bg-surface-hover: var(--color-slate-100);
   --bg-glass: rgba(255, 255, 255, 0.9);
   --bg-panel: var(--bg-surface);
+  --bg-card: var(--bg-surface);
+  --bg-card-hover: var(--color-slate-50);
   /* Solid in light mode for readability */
   --bg-main: var(--bg-surface-subtle);
   /* Main background for internal components */
 
+  --border: var(--color-slate-200);
   --border-app: var(--color-slate-200);
   --border-subtle: var(--color-slate-100);
   --border-focus: var(--color-slate-400);
 
   --text-primary: var(--color-slate-800);
-  --text-secondary: var(--color-slate-500);
-  --text-tertiary: var(--color-slate-400);
+  --text-secondary: var(--color-slate-600);
+  --text-tertiary: var(--color-slate-500);
+  --text-muted: var(--color-slate-500);
   --text-inverse: var(--color-white);
 
   --brand-primary: var(--color-red-500);
   --brand-secondary: var(--color-slate-800);
+  --circuit-asphalt: var(--color-slate-200);
 
   --status-success: var(--color-green-500);
   --status-warning: var(--color-yellow-500);
   --status-critical: var(--color-red-500);
+  --status-info: var(--color-blue-500);
+  --color-success: var(--color-green-500);
+  --color-warning: var(--color-yellow-500);
+  --color-danger: var(--color-red-500);
+  --color-info: var(--color-blue-500);
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-card: var(--shadow-sm);
+  --shadow-floating: 0 10px 15px -3px rgb(0 0 0 / 0.1);
   --shadow-glow: 0 0 0 transparent;
+
+  /* Data Viz */
+  --chart-1: var(--color-blue-500);
+  --chart-2: var(--color-purple-500);
+  --chart-3: var(--color-yellow-400);
 
   /* Spacing Scale (4px Grid) */
   --space-1: 4px;
@@ -91,24 +113,35 @@
   --bg-glass: rgba(15, 23, 42, 0.85);
   /* Slate 900 with Alpha */
   --bg-panel: var(--bg-glass);
+  --bg-card: var(--bg-surface-subtle);
+  --bg-card-hover: var(--color-slate-700);
   /* Glass in dark mode for F1 vibe */
   --bg-main: var(--bg-surface-subtle);
   /* Main background for internal components */
 
+  --border: var(--color-slate-700);
   --border-app: var(--color-slate-700);
   --border-subtle: var(--color-slate-800);
   --border-focus: var(--color-slate-600);
 
   --text-primary: var(--color-slate-50);
-  --text-secondary: var(--color-slate-400);
-  --text-tertiary: var(--color-slate-500);
+  --text-secondary: var(--color-slate-200);
+  --text-tertiary: var(--color-slate-400);
+  --text-muted: var(--color-slate-500);
 
   --status-success: var(--color-green-400);
   --status-warning: var(--color-yellow-400);
   --status-critical: var(--color-red-500);
+  --color-success: var(--color-green-400);
+  --color-warning: var(--color-yellow-400);
+  --color-danger: var(--color-red-500);
+
+  --circuit-asphalt: var(--color-slate-800);
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
+  --shadow-card: var(--shadow-sm);
+  --shadow-floating: 0 20px 25px -5px rgb(0 0 0 / 0.5);
   --shadow-glow: 0 0 15px rgba(244, 42, 64, 0.15);
   /* Subtle Red Glow */
 }

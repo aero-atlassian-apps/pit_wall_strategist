@@ -34,23 +34,49 @@ export class CycleTimeCalculator {
                 histories.sort((a, b) => new Date(a.created).getTime() - new Date(b.created).getTime());
 
                 const resolvedTime = issue.resolved?.getTime() || issue.updated?.getTime() || 0;
-                let startTs: number | null = null;
-                let lastCat = JiraStatusCategory.TO_DO;
+                let totalIndeterminateMs = 0;
+                let currentCat = statusResolver(issue.statusName || ''); // Current status is done
+
+                // We need to know the initial status. Usually 'ToDo' but we check first history.
+                // Or we can just iterate histories.
+
+                // Let's track intervals of 'Indeterminate'
+                let lastStatusTime = issue.created.getTime();
+                let lastCat = JiraStatusCategory.TO_DO; // Assume starting at ToDo
+
+                // Find initial status from first history entry if possible
+                if (histories.length > 0) {
+                    const firstStatusChange = histories[0].items.find(it => it.field === 'status');
+                    if (firstStatusChange && firstStatusChange.fromString) {
+                        lastCat = statusResolver(firstStatusChange.fromString);
+                    }
+                }
 
                 for (const h of histories) {
                     const statusChange = h.items.find(it => it.field === 'status');
                     if (!statusChange) continue;
 
+                    const changeTime = new Date(h.created).getTime();
                     const toCat = statusResolver(statusChange.toString || '');
 
-                    if (lastCat.isToDo && toCat.isInProgress && startTs === null) {
-                        startTs = new Date(h.created).getTime();
+                    // If we were in Indeterminate, we just finished an interval
+                    if (lastCat.isInProgress) {
+                        totalIndeterminateMs += (changeTime - lastStatusTime);
                     }
+
                     lastCat = toCat;
+                    lastStatusTime = changeTime;
                 }
 
-                if (startTs && resolvedTime > startTs) {
-                    durationsMs.push(resolvedTime - startTs);
+                // If the final status (after all histories) is still Indeterminate (shouldn't happen for CompletedIssues but let's be safe),
+                // or if the transition to Done happened at resolvedTime.
+                // Usually the last history entry is the transition to Done.
+                if (lastCat.isInProgress && resolvedTime > lastStatusTime) {
+                    totalIndeterminateMs += (resolvedTime - lastStatusTime);
+                }
+
+                if (totalIndeterminateMs > 0) {
+                    durationsMs.push(totalIndeterminateMs);
                 }
             }
         }

@@ -10,7 +10,7 @@
 
 import { storage } from '@forge/api';
 import api, { route } from '@forge/api';
-import { DEFAULT_CONFIG } from '../../infrastructure/services/LegacyTelemetryAdapter';
+import { DEFAULT_CONFIG } from '../../infrastructure/services/TelemetryService';
 import type { TelemetryConfig } from '../../types/telemetry';
 
 const PLATFORM = process.env.PLATFORM || 'atlassian';

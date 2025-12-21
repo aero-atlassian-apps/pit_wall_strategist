@@ -23,6 +23,7 @@ export function getRecommendedActions(
     const order = { critical: 0, recommended: 1, available: 2, hidden: 3 };
     recommendations.sort((a, b) => order[a.relevance] - order[b.relevance]);
 
-    // Filter out hidden and limit to top 6 for better UX
-    return recommendations.filter(r => r.relevance !== 'hidden').slice(0, 6);
+    // STRICT FILTERING: Only show Critical and Recommended actions.
+    // "Management by Exception" - don't noise the user with generic actions unless relevant.
+    return recommendations.filter(r => r.relevance === 'critical' || r.relevance === 'recommended').slice(0, 6);
 }

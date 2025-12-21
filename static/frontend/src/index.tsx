@@ -12,15 +12,8 @@ import './theme/typography.css'
 import './styles/cards.css'
 
 // Bundled fonts for Runs on Atlassian compliance (no external CDN)
-import '@fontsource/inter/400.css'
-import '@fontsource/inter/600.css'
-import '@fontsource/inter/700.css'
-import '@fontsource/roboto-mono/400.css'
-import '@fontsource/roboto-mono/600.css'
-import '@fontsource/roboto-mono/700.css'
-import '@fontsource/jetbrains-mono/400.css'
-import '@fontsource/jetbrains-mono/600.css'
-import '@fontsource/jetbrains-mono/700.css'
+// Bundled fonts for Runs on Atlassian compliance (no external CDN)
+import './assets/fonts/fonts.css'
 
 function getCspNonce(): string | undefined {
   const meta = document.querySelector('meta[name="csp-nonce"]') as HTMLMetaElement | null

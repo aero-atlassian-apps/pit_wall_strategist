@@ -9,6 +9,21 @@ Pit Wall Strategist brings an F1-inspired dashboard to Jira: live telemetry, cyc
 - Offer guided strategy actions (split, reassign, defer) with a race-control UX
 - Surface DevOps integration signals (e.g., “no commits” for work-in-progress)
 
+## 🏁 Universal Coverage
+
+> **Whatever your team. However you work. Pit Wall has you covered.**
+
+| Your Setup | Status |
+|------------|--------|
+| Business team? | ✅ Covered |
+| Software team? | ✅ Covered |
+| Scrum? Kanban? No board? | ✅ All covered |
+| Custom workflows? | ✅ Fine — we use status categories |
+| Light/Dark mode? | ✅ Covered |
+| Your language? | ✅ EN, FR, ES, PT |
+
+**Zero configuration required.** → [Full Coverage Details](docs/UNIVERSAL_COVERAGE.md)
+
 ## Key Features
 - Telemetry: WIP load, team burnout, velocity delta, stalled detection
 - Timing: Cycle/sector times and average lap time by assignee

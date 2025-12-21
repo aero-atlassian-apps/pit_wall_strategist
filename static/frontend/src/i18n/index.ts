@@ -11,7 +11,7 @@ export function t(key: string, locale: string = 'en') {
 }
 const ensure = (loc: string, entries: Record<string, string>) => { dict[loc] = { ...(dict[loc] || {}), ...entries } }
 ensure('en', { telemetryFeed: 'Telemetry Feed', connected: 'CONNECTED', offline: 'OFFLINE', receivingData: 'Receiving Data', noSignal: 'No Signal', allCarsTx: 'All cars transmitting telemetry', connectDevops: 'Connect Bitbucket, GitHub, or GitLab\nto receive code telemetry' })
-ensure('en', { performanceTrends: 'Performance Trends', wipTrend: 'WIP Trend', velocity: 'Velocity' })
+ensure('en', { performanceTrends: 'Performance Trends', wipTrend: 'WIP Trend', velocity: 'Velocity', last7Days: 'Last 7 Days', capacityPercent: '{percent}% Capacity', metricUnavailable: 'N/A' })
 ensure('en', { flowTelemetry: 'Flow Telemetry', sprintTelemetry: 'Sprint Telemetry', avgCycleTime: 'Avg Cycle Time', completion: 'Completion', vitals: 'Vitals', flowLoad: 'Flow Load', wipUtilization: 'WIP Utilization', sprintLoad: 'Sprint Load', teamBurnout: 'Team Burnout', wipConsistency: 'WIP Consistency', source: 'Source', window: 'Window' })
 ensure('en', { flow: 'FLOW', sprint: 'SPRINT', refreshTelemetry: 'Refresh Telemetry', refreshTiming: 'Refresh Timing', connectionLost: 'Connection Lost', noSprintIssues: 'No issues assigned to the active sprint', noBoardIssues: 'No issues on this board', emptyStateDesc: 'Create your first issue in Jira to see telemetry and the track map.', error: 'Error', initializingTelemetry: 'INITIALIZING TELEMETRY...', close: 'Close', unmappedTransitions: 'Transitions outside board columns' })
 ensure('en', { sprintHealth: 'Sprint Health', calculatingPrediction: 'Calculating prediction...', sprintHealthPredictor: 'Sprint Health Predictor', velocityVsHistory: 'Velocity vs History', pace: 'Pace', timeProgress: 'Time Progress', time: 'Time', stallFree: 'Stall-Free', wipBalance: 'WIP Balance', scope: 'Scope' })
@@ -123,7 +123,7 @@ ensure('pt', {
   populationProcessDesc: 'Terminologia otimizada para equipes de Negócio sem sprints.'
 })
 ensure('fr', { telemetryFeed: 'Flux de Télémétrie', connected: 'CONNECTÉ', offline: 'HORS LIGNE', receivingData: 'Réception de Données', noSignal: 'Pas de Signal', allCarsTx: 'Toutes les voitures transmettent la télémétrie', connectDevops: 'Connectez Bitbucket, GitHub ou GitLab\npour recevoir la télémétrie de code' })
-ensure('fr', { performanceTrends: 'Tendances de Performance', wipTrend: 'Tendance WIP', velocity: 'Vélocité' })
+ensure('fr', { performanceTrends: 'Tendances de Performance', wipTrend: 'Tendance WIP', velocity: 'Vélocité', last7Days: '7 Derniers Jours', capacityPercent: '{percent}% Capacité', metricUnavailable: 'N/D' })
 ensure('fr', { flowTelemetry: 'Télémetrie du Flux', sprintTelemetry: 'Télémetrie du Sprint', avgCycleTime: 'Temps moyen de cycle', completion: 'Achèvement', vitals: 'VITAUX', flowLoad: 'Charge du Flux', wipUtilization: 'Utilisation WIP', sprintLoad: 'Charge du Sprint', teamBurnout: "Epuisement de l'équipe", wipConsistency: 'Consistance WIP', source: 'Source', window: 'Fenêtre' })
 ensure('fr', { flow: 'FLUX', sprint: 'SPRINT', refreshTelemetry: 'Actualiser Télémetrie', refreshTiming: 'Actualiser Chronos', connectionLost: 'Connexion perdue', noSprintIssues: "Aucun ticket assigné au sprint actif", noBoardIssues: 'Aucun ticket sur ce tableau', emptyStateDesc: 'Créez votre premier ticket dans Jira pour voir la télémétrie et la carte.', error: 'Erreur', initializingTelemetry: 'INITIALISATION DE LA TÉLÉMÉTRIE...', close: 'Fermer', unmappedTransitions: 'Transitions hors colonas configuradas' })
 ensure('fr', { sprintHealth: 'Santé du Sprint', calculatingPrediction: 'Calcul de la prédiction...', sprintHealthPredictor: 'Prédicteur de Santé du Sprint', velocityVsHistory: 'Vélocité vs Historique', pace: 'Rythme', timeProgress: 'Progression du Temps', time: 'Temps', stallFree: 'Sans blocage', wipBalance: 'Équilibre WIP', scope: 'Scope' })
@@ -138,7 +138,7 @@ ensure('fr', {
 })
 ensure('fr', { avgLapTime: 'Temps au Tour Moyen', sectorTimes: 'Temps par Secteur', cycleBadge: 'CYCLE', avg: 'moy', driverLapTimes: 'Temps des Pilotes', lapsBadge: 'TOURS', tickets: 'tickets', best: 'meilleur' })
 ensure('es', { telemetryFeed: 'Feed de Telemetría', connected: 'CONECTADO', offline: 'SIN CONEXIÓN', receivingData: 'Recibiendo Datos', noSignal: 'Sin Señal', allCarsTx: 'Todos los coches transmitiendo telemetría', connectDevops: 'Conecte Bitbucket, GitHub o GitLab\npara recibir telemetría de código' })
-ensure('es', { performanceTrends: 'Tendencias de Rendimiento', wipTrend: 'Tendencia WIP', velocity: 'Velocidad' })
+ensure('es', { performanceTrends: 'Tendencias de Rendimiento', wipTrend: 'Tendencia WIP', velocity: 'Velocidad', last7Days: 'Últimos 7 Días', capacityPercent: '{percent}% Capacidad', metricUnavailable: 'N/D' })
 ensure('es', { flowTelemetry: 'Telemetría de Flujo', sprintTelemetry: 'Telemetría de Sprint', avgCycleTime: 'Tiempo medio de ciclo', completion: 'Completado', vitals: 'VITALES', flowLoad: 'Carga de Flujo', wipUtilization: 'Utilización WIP', sprintLoad: 'Carga de Sprint', teamBurnout: 'Fatiga del Equipo', wipConsistency: 'Consistencia WIP', source: 'Fuente', window: 'Ventana' })
 ensure('es', { flow: 'FLUJO', sprint: 'SPRINT', refreshTelemetry: 'Actualizar Telemetría', refreshTiming: 'Actualizar Tiempos', connectionLost: 'Conexión perdida', noSprintIssues: 'No hay tickets asignados al sprint activo', noBoardIssues: 'No hay tickets en este tablero', emptyStateDesc: 'Crea tu primer ticket en Jira para ver la telemetría y el mapa.', error: 'Error', initializingTelemetry: 'INICIALIZANDO TELEMETRÍA...', close: 'Cerrar', unmappedTransitions: 'Transiciones fuera de columnas configuradas' })
 ensure('es', { sprintHealth: 'Salud del Sprint', calculatingPrediction: 'Calculando predicción...', sprintHealthPredictor: 'Predictor de Salud del Sprint', velocityVsHistory: 'Velocidad vs Historial', pace: 'Ritmo', timeProgress: 'Progreso del Tiempo', time: 'Tiempo', stallFree: 'Sin bloqueos', wipBalance: 'Balance WIP', scope: 'Alcance' })
@@ -153,7 +153,7 @@ ensure('es', {
 })
 ensure('es', { avgLapTime: 'Tiempo Medio por Vuelta', sectorTimes: 'Tiempos por Sector', cycleBadge: 'CICLO', avg: 'med', driverLapTimes: 'Tiempos de Pilotos', lapsBadge: 'VUELTAS', tickets: 'tickets', best: 'mejor' })
 ensure('pt', { telemetryFeed: 'Feed de Telemetria', connected: 'CONECTADO', offline: 'OFFLINE', receivingData: 'Recebendo Dados', noSignal: 'Sem Sinal', allCarsTx: 'Todos os carros transmitindo telemetria', connectDevops: 'Conecte Bitbucket, GitHub ou GitLab\npara receber telemetria de código' })
-ensure('pt', { performanceTrends: 'Tendências de Desempenho', wipTrend: 'Tendência WIP', velocity: 'Velocidade' })
+ensure('pt', { performanceTrends: 'Tendências de Desempenho', wipTrend: 'Tendência WIP', velocity: 'Velocidade', last7Days: 'Últimos 7 Dias', capacityPercent: '{percent}% Capacidade', metricUnavailable: 'N/D' })
 ensure('pt', { flowTelemetry: 'Telemetria de Fluxo', sprintTelemetry: 'Telemetria de Sprint', avgCycleTime: 'Tempo médio de ciclo', completion: 'Conclusão', vitals: 'VITAIS', flowLoad: 'Carga de Fluxo', wipUtilization: 'Utilização WIP', sprintLoad: 'Carga do Sprint', teamBurnout: 'Esgotamento da Equipe', wipConsistency: 'Consistência WIP', source: 'Fonte', window: 'Janela' })
 ensure('pt', { flow: 'FLUXO', sprint: 'SPRINT', refreshTelemetry: 'Atualizar Telemetria', refreshTiming: 'Atualizar Tempos', connectionLost: 'Conexão perdida', noSprintIssues: 'Nenhum ticket atribuído ao sprint ativo', noBoardIssues: 'Nenhum ticket neste quadro', emptyStateDesc: 'Crie seu primeiro ticket no Jira para ver a telemetria e o mapa.', error: 'Erro', initializingTelemetry: 'INICIALIZANDO TELEMETRIA...', close: 'Fechar', unmappedTransitions: 'Transições fora das colunas configuradas' })
 ensure('pt', { sprintHealth: 'Saúde do Sprint', calculatingPrediction: 'Calculando previsão...', sprintHealthPredictor: 'Preditor de Saúde do Sprint', velocityVsHistory: 'Velocidade vs Histórico', pace: 'Ritmo', timeProgress: 'Progresso do Tempo', time: 'Tempo', stallFree: 'Sem paralisações', wipBalance: 'Balanço WIP', scope: 'Escopo' })
@@ -223,7 +223,7 @@ ensure('en', {
   pop_scrum_timeMetric: 'Sprint Progress',
   pop_scrum_workItems: 'Sprint Backlog',
   pop_scrum_health: 'Sprint Health',
-  pop_scrum_completion: 'Sprint Goal',
+  pop_scrum_completion: 'Sprint Completion',
   pop_scrum_stalled: 'Blocked',
   pop_scrum_overload: 'Sprint Overcommit',
   pop_scrum_load: 'Sprint Load',
@@ -239,7 +239,7 @@ ensure('fr', {
   pop_scrum_timeMetric: 'Progression du Sprint',
   pop_scrum_workItems: 'Backlog du Sprint',
   pop_scrum_health: 'Santé du Sprint',
-  pop_scrum_completion: 'Objectif Sprint',
+  pop_scrum_completion: 'Complétion du Sprint',
   pop_scrum_stalled: 'Bloqué',
   pop_scrum_overload: 'Sprint Surchargé',
   pop_scrum_load: 'Charge du Sprint',
@@ -255,7 +255,7 @@ ensure('es', {
   pop_scrum_timeMetric: 'Progreso del Sprint',
   pop_scrum_workItems: 'Backlog del Sprint',
   pop_scrum_health: 'Salud del Sprint',
-  pop_scrum_completion: 'Objetivo del Sprint',
+  pop_scrum_completion: 'Completado del Sprint',
   pop_scrum_stalled: 'Bloqueado',
   pop_scrum_overload: 'Sprint Sobrecargado',
   pop_scrum_load: 'Carga del Sprint',
@@ -271,7 +271,7 @@ ensure('pt', {
   pop_scrum_timeMetric: 'Progresso do Sprint',
   pop_scrum_workItems: 'Backlog do Sprint',
   pop_scrum_health: 'Saúde do Sprint',
-  pop_scrum_completion: 'Meta do Sprint',
+  pop_scrum_completion: 'Conclusão do Sprint',
   pop_scrum_stalled: 'Bloqueado',
   pop_scrum_overload: 'Sprint Sobrecarregado',
   pop_scrum_load: 'Carga do Sprint',
@@ -493,6 +493,159 @@ ensure('pt', {
   pop_process_emptyHint: 'Crie tarefas para ver seu painel de processos.'
 })
 
+// =============================================================================
+// HEALTH GAUGE FACTOR LABELS (Population-Specific)
+// These are the 4 factors shown in SprintHealthGauge / Process Health panels
+// =============================================================================
+
+// --- SCRUM FACTOR LABELS ---
+ensure('en', {
+  pop_scrum_factor_pace: 'PACE',
+  pop_scrum_factor_time: 'TAC',
+  pop_scrum_factor_flow: 'FLOW',
+  pop_scrum_factor_scope: 'SCOPE',
+  pop_scrum_factor_pace_tooltip: 'Velocity Rate vs Historical',
+  pop_scrum_factor_time_tooltip: 'Time Against Completion',
+  pop_scrum_factor_flow_tooltip: 'Flow Efficiency (stall-free)',
+  pop_scrum_factor_scope_tooltip: 'Scope Stability'
+})
+ensure('fr', {
+  pop_scrum_factor_pace: 'RYTHME',
+  pop_scrum_factor_time: 'TEMPS',
+  pop_scrum_factor_flow: 'FLUX',
+  pop_scrum_factor_scope: 'SCOPE',
+  pop_scrum_factor_pace_tooltip: 'Vélocité vs Historique',
+  pop_scrum_factor_time_tooltip: 'Temps avant Fin',
+  pop_scrum_factor_flow_tooltip: 'Efficacité du Flux',
+  pop_scrum_factor_scope_tooltip: 'Stabilité du Scope'
+})
+ensure('es', {
+  pop_scrum_factor_pace: 'RITMO',
+  pop_scrum_factor_time: 'TIEMPO',
+  pop_scrum_factor_flow: 'FLUJO',
+  pop_scrum_factor_scope: 'ALCANCE',
+  pop_scrum_factor_pace_tooltip: 'Velocidad vs Historial',
+  pop_scrum_factor_time_tooltip: 'Tiempo Restante',
+  pop_scrum_factor_flow_tooltip: 'Eficiencia del Flujo',
+  pop_scrum_factor_scope_tooltip: 'Estabilidad del Alcance'
+})
+ensure('pt', {
+  pop_scrum_factor_pace: 'RITMO',
+  pop_scrum_factor_time: 'TEMPO',
+  pop_scrum_factor_flow: 'FLUXO',
+  pop_scrum_factor_scope: 'ESCOPO',
+  pop_scrum_factor_pace_tooltip: 'Velocidade vs Histórico',
+  pop_scrum_factor_time_tooltip: 'Tempo Restante',
+  pop_scrum_factor_flow_tooltip: 'Eficiência do Fluxo',
+  pop_scrum_factor_scope_tooltip: 'Estabilidade do Escopo'
+})
+
+// --- FLOW (KANBAN) FACTOR LABELS ---
+ensure('en', {
+  pop_flow_factor_pace: 'RATE',
+  pop_flow_factor_time: 'CYCLE',
+  pop_flow_factor_flow: 'FLOW',
+  pop_flow_factor_scope: 'WIP',
+  pop_flow_factor_pace_tooltip: 'Throughput Rate',
+  pop_flow_factor_time_tooltip: 'Cycle Time Trend',
+  pop_flow_factor_flow_tooltip: 'Flow Efficiency',
+  pop_flow_factor_scope_tooltip: 'WIP Stability'
+})
+ensure('fr', {
+  pop_flow_factor_pace: 'DÉBIT',
+  pop_flow_factor_time: 'CYCLE',
+  pop_flow_factor_flow: 'FLUX',
+  pop_flow_factor_scope: 'WIP',
+  pop_flow_factor_pace_tooltip: 'Taux de Débit',
+  pop_flow_factor_time_tooltip: 'Tendance Temps de Cycle',
+  pop_flow_factor_flow_tooltip: 'Efficacité du Flux',
+  pop_flow_factor_scope_tooltip: 'Stabilité WIP'
+})
+ensure('es', {
+  pop_flow_factor_pace: 'TASA',
+  pop_flow_factor_time: 'CICLO',
+  pop_flow_factor_flow: 'FLUJO',
+  pop_flow_factor_scope: 'WIP',
+  pop_flow_factor_pace_tooltip: 'Tasa de Rendimiento',
+  pop_flow_factor_time_tooltip: 'Tendencia del Tiempo de Ciclo',
+  pop_flow_factor_flow_tooltip: 'Eficiencia del Flujo',
+  pop_flow_factor_scope_tooltip: 'Estabilidad WIP'
+})
+ensure('pt', {
+  pop_flow_factor_pace: 'TAXA',
+  pop_flow_factor_time: 'CICLO',
+  pop_flow_factor_flow: 'FLUXO',
+  pop_flow_factor_scope: 'WIP',
+  pop_flow_factor_pace_tooltip: 'Taxa de Vazão',
+  pop_flow_factor_time_tooltip: 'Tendência do Tempo de Ciclo',
+  pop_flow_factor_flow_tooltip: 'Eficiência do Fluxo',
+  pop_flow_factor_scope_tooltip: 'Estabilidade WIP'
+})
+
+// --- PROCESS (BUSINESS) FACTOR LABELS ---
+ensure('en', {
+  pop_process_factor_pace: 'OUTPUT',
+  pop_process_factor_time: 'LEAD',
+  pop_process_factor_flow: 'FLOW',
+  pop_process_factor_scope: 'QUEUE',
+  pop_process_factor_pace_tooltip: 'Delivery Output Rate',
+  pop_process_factor_time_tooltip: 'Lead Time Trend',
+  pop_process_factor_flow_tooltip: 'Process Flow',
+  pop_process_factor_scope_tooltip: 'Queue Stability'
+})
+ensure('fr', {
+  pop_process_factor_pace: 'SORTIE',
+  pop_process_factor_time: 'DÉLAI',
+  pop_process_factor_flow: 'FLUX',
+  pop_process_factor_scope: 'FILE',
+  pop_process_factor_pace_tooltip: 'Taux de Livraison',
+  pop_process_factor_time_tooltip: 'Tendance Délai',
+  pop_process_factor_flow_tooltip: 'Flux du Processus',
+  pop_process_factor_scope_tooltip: 'Stabilité de la File'
+})
+ensure('es', {
+  pop_process_factor_pace: 'SALIDA',
+  pop_process_factor_time: 'PLAZO',
+  pop_process_factor_flow: 'FLUJO',
+  pop_process_factor_scope: 'COLA',
+  pop_process_factor_pace_tooltip: 'Tasa de Entrega',
+  pop_process_factor_time_tooltip: 'Tendencia del Plazo',
+  pop_process_factor_flow_tooltip: 'Flujo del Proceso',
+  pop_process_factor_scope_tooltip: 'Estabilidad de la Cola'
+})
+ensure('pt', {
+  pop_process_factor_pace: 'SAÍDA',
+  pop_process_factor_time: 'PRAZO',
+  pop_process_factor_flow: 'FLUXO',
+  pop_process_factor_scope: 'FILA',
+  pop_process_factor_pace_tooltip: 'Taxa de Entrega',
+  pop_process_factor_time_tooltip: 'Tendência do Prazo',
+  pop_process_factor_flow_tooltip: 'Fluxo do Processo',
+  pop_process_factor_scope_tooltip: 'Estabilidade da Fila'
+})
+
+// --- HEALTH PANEL TITLE (Population-Specific) ---
+ensure('en', {
+  pop_scrum_healthTitle: 'SPRINT HEALTH PREDICTOR',
+  pop_flow_healthTitle: 'FLOW HEALTH',
+  pop_process_healthTitle: 'PROCESS HEALTH'
+})
+ensure('fr', {
+  pop_scrum_healthTitle: 'PRÉDICTEUR DE SANTÉ DU SPRINT',
+  pop_flow_healthTitle: 'SANTÉ DU FLUX',
+  pop_process_healthTitle: 'SANTÉ DU PROCESSUS'
+})
+ensure('es', {
+  pop_scrum_healthTitle: 'PREDICTOR DE SALUD DEL SPRINT',
+  pop_flow_healthTitle: 'SALUD DEL FLUJO',
+  pop_process_healthTitle: 'SALUD DEL PROCESO'
+})
+ensure('pt', {
+  pop_scrum_healthTitle: 'PREDITOR DE SAÚDE DO SPRINT',
+  pop_flow_healthTitle: 'SAÚDE DO FLUXO',
+  pop_process_healthTitle: 'SAÚDE DO PROCESSO'
+})
+
 
 /**
  * Population-adaptive translation helper.
@@ -645,3 +798,53 @@ export function tExp(explanation: string | undefined, locale: string = 'en'): st
 }
 
 
+
+ensure('en', {
+  liveFeed: 'LIVE FEED',
+  strategy_boxBox: 'BOX BOX (CRITICAL ALERTS)'
+})
+ensure('fr', {
+  liveFeed: 'DIRECT',
+  strategy_boxBox: 'BOX BOX (ALERTES CRITIQUES)'
+})
+ensure('es', {
+  liveFeed: 'EN VIVO',
+  strategy_boxBox: 'BOX BOX (ALERTAS CRÍTICAS)'
+})
+ensure('pt', {
+  liveFeed: 'AO VIVO',
+  strategy_boxBox: 'BOX BOX (ALERTAS CRÍTICOS)'
+})
+
+// =============================================================================
+// PRODUCTION HARDENING - Additional i18n keys for zero hardcoded strings
+// =============================================================================
+
+ensure('en', {
+  metricUnavailable: 'Metric Data Unavailable',
+  capacityPercent: '{percent}% Capacity',
+  askRovoAnalysis: 'Ask Rovo for analysis',
+  scopeCreepTitle: 'Scope Creep',
+  scopeCreepPoints: 'Sprint scope increased by {points} points.'
+})
+ensure('fr', {
+  metricUnavailable: 'Données indisponibles',
+  capacityPercent: '{percent}% Capacité',
+  askRovoAnalysis: 'Demander une analyse à Rovo',
+  scopeCreepTitle: 'Dérive du Périmètre',
+  scopeCreepPoints: 'Le périmètre du sprint a augmenté de {points} points.'
+})
+ensure('es', {
+  metricUnavailable: 'Datos no disponibles',
+  capacityPercent: '{percent}% Capacidad',
+  askRovoAnalysis: 'Pedir análisis a Rovo',
+  scopeCreepTitle: 'Aumento de Alcance',
+  scopeCreepPoints: 'El alcance del sprint aumentó en {points} puntos.'
+})
+ensure('pt', {
+  metricUnavailable: 'Dados não disponíveis',
+  capacityPercent: '{percent}% Capacidade',
+  askRovoAnalysis: 'Pedir análise ao Rovo',
+  scopeCreepTitle: 'Aumento de Escopo',
+  scopeCreepPoints: 'O escopo do sprint aumentou em {points} pontos.'
+})

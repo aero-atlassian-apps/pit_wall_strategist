@@ -12,12 +12,13 @@
 
 import api, { route } from '@forge/api';
 import { JiraBoardRepository } from '../../infrastructure/jira/JiraBoardRepository';
-import { LegacyTelemetryAdapter } from '../../infrastructure/services/LegacyTelemetryAdapter';
+import { TelemetryService } from '../../infrastructure/services/TelemetryService';
 import { StatusMapService } from '../../infrastructure/services/StatusMapService';
-import { SecurityGuard } from '../security/SecurityGuard';
+import { SecurityGuard } from '../../infrastructure/services/SecurityGuard';
 import { getEffectiveConfig } from '../config/ConfigResolvers';
 import { getScopes } from '../../config/scopes';
 import { calculateWipTrend, calculateVelocityTrend } from '../trendMetrics';
+import { getProjectContext } from '../contextEngine';
 import { getFetchStatuses } from '../fetchStatus';
 import type { TelemetryData, BoardData, TrendData } from '../../types/telemetry';
 
@@ -45,7 +46,9 @@ export function registerDiagnosticsResolvers(resolver: any): void {
             const enhancedContext = { ...context, security: status };
             const boardData: BoardData = await boardRepository.getBoardData(projectKey, userConfig, enhancedContext);
             const statusMap = await statusMapService.getProjectStatusMap(projectKey);
-            const telemetry: TelemetryData = await LegacyTelemetryAdapter.calculateTelemetry(boardData, userConfig, statusMap);
+
+            const ctx = await getProjectContext(projectKey);
+            const telemetry: TelemetryData = await TelemetryService.calculateTelemetry(boardData, userConfig, ctx, statusMap);
             const wipTrend: TrendData = await calculateWipTrend(projectKey);
             const velocityTrend: TrendData = await calculateVelocityTrend(projectKey);
 
@@ -111,7 +114,7 @@ export function registerDiagnosticsResolvers(resolver: any): void {
                 boardInfo = { error: 'Access Denied' };
             }
 
-            const fields = await LegacyTelemetryAdapter.discoverCustomFields();
+            const fields = await TelemetryService.discoverCustomFields();
             return {
                 success: true,
                 platform: PLATFORM,
@@ -153,7 +156,7 @@ export function registerDiagnosticsResolvers(resolver: any): void {
                 }
             } catch (e: any) { filter = { error: e?.message }; }
 
-            const fieldsSnapshot = LegacyTelemetryAdapter.getFieldCacheSnapshot() || (await LegacyTelemetryAdapter.discoverCustomFields());
+            const fieldsSnapshot = TelemetryService.getFieldCacheSnapshot() || (await TelemetryService.discoverCustomFields());
 
             let sprint: any = null;
             try {

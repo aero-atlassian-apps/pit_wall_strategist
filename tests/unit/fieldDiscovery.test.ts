@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { fieldDiscoveryService } from '../../src/resolvers/data/FieldDiscoveryService'
+import { fieldDiscoveryService } from '../../src/infrastructure/services/FieldDiscoveryService'
 
 const route = (strings: any, ...values: any[]) => { let s = ''; for (let i = 0; i < strings.length; i++) s += strings[i] + (values[i] ?? ''); return s }
 const mkErr = (status = 500) => ({ ok: false, status, json: async () => ({}) })

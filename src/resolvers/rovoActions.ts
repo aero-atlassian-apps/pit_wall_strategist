@@ -1,6 +1,6 @@
 import api, { route } from '@forge/api'
 import { mockActionResult } from './mocks'
-import { LegacyTelemetryAdapter } from '../infrastructure/services/LegacyTelemetryAdapter'
+import { TelemetryService } from '../infrastructure/services/TelemetryService'
 import { getProjectContext } from './contextEngine'
 
 const PLATFORM = process.env.PLATFORM || 'atlassian'
@@ -117,7 +117,7 @@ export async function deferTicket({ issueKey }: { issueKey: string }) {
 
   // 2. Remove from active sprint (Clear Sprint Field)
   try {
-    const fieldsCache = await LegacyTelemetryAdapter.discoverCustomFields()
+    const fieldsCache = await TelemetryService.discoverCustomFields()
     const sprintField = fieldsCache.sprint
     if (sprintField) {
       // Check if field is present on issue before trying to clear it (avoid 400 on Kanban)
@@ -201,7 +201,7 @@ export async function addBlockerFlag({ issueKey, reason }: { issueKey: string; r
 
   // 2. Set "Flagged" field to "Impediment" OR whatever valid option is available
   try {
-    const fields = await LegacyTelemetryAdapter.discoverCustomFields()
+    const fields = await TelemetryService.discoverCustomFields()
     if (fields.flagged) {
       // Agnostic: Discovery allowed values via editmeta
       const allowedValues = await getFieldAllowedValues(issueKey, fields.flagged);
@@ -260,10 +260,11 @@ export async function updateEstimate({ issueKey, storyPoints, timeEstimate }: { 
 
   // Dynamic Story Points Field
   if (storyPoints !== undefined) {
-    const fieldsCache = await LegacyTelemetryAdapter.discoverCustomFields()
-    const spField = fieldsCache.storyPoints // || 'customfield_10016' -> Removed default fallback to enforce successful discovery
-    if (spField) {
-      fields[spField] = storyPoints
+    const fieldsCache = await TelemetryService.discoverCustomFields()
+    const spFields = fieldsCache.storyPoints || []
+    if (spFields.length > 0) {
+      // Use the first discovered field as the target for writing
+      fields[spFields[0]] = storyPoints
     }
   }
 

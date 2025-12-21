@@ -34,13 +34,13 @@ const Badge = styled.span<{ $efficiency: number }>`
   padding: 3px 8px;
   border-radius: 4px;
   background: ${({ $efficiency }) =>
-        $efficiency >= 40 ? 'rgba(57, 255, 20, 0.2)' :
-            $efficiency >= 20 ? 'rgba(244, 208, 63, 0.2)' :
-                'rgba(255, 0, 51, 0.2)'};
+    $efficiency >= 40 ? 'rgba(57, 255, 20, 0.2)' :
+      $efficiency >= 20 ? 'rgba(244, 208, 63, 0.2)' :
+        'rgba(255, 0, 51, 0.2)'};
   color: ${({ $efficiency }) =>
-        $efficiency >= 40 ? '#39FF14' :
-            $efficiency >= 20 ? '#F4D03F' :
-                '#FF0033'};
+    $efficiency >= 40 ? '#39FF14' :
+      $efficiency >= 20 ? '#F4D03F' :
+        '#FF0033'};
   text-transform: uppercase;
 `
 
@@ -75,11 +75,11 @@ const GaugeFill = styled.div<{ $percent: number }>`
   border: 12px solid transparent;
   border-radius: 50%;
   border-top-color: ${({ $percent }) =>
-        $percent >= 40 ? '#39FF14' :
-            $percent >= 20 ? '#F4D03F' :
-                '#FF0033'};
+    $percent >= 40 ? '#39FF14' :
+      $percent >= 20 ? '#F4D03F' :
+        '#FF0033'};
   border-right-color: ${({ $percent }) =>
-        $percent >= 50 ? ($percent >= 40 ? '#39FF14' : $percent >= 20 ? '#F4D03F' : '#FF0033') : 'transparent'};
+    $percent >= 50 ? ($percent >= 40 ? '#39FF14' : $percent >= 20 ? '#F4D03F' : '#FF0033') : 'transparent'};
   transform: rotate(${({ $percent }) => 135 + (Math.min($percent, 100) * 1.8)}deg);
   position: absolute;
   top: 0;
@@ -99,9 +99,9 @@ const GaugeValue = styled.div<{ $efficiency: number }>`
   font-size: 24px;
   font-weight: 700;
   color: ${({ $efficiency }) =>
-        $efficiency >= 40 ? '#39FF14' :
-            $efficiency >= 20 ? '#F4D03F' :
-                '#FF0033'};
+    $efficiency >= 40 ? '#39FF14' :
+      $efficiency >= 20 ? '#F4D03F' :
+        '#FF0033'};
 `
 
 const GaugeUnit = styled.div`
@@ -152,119 +152,126 @@ const Explanation = styled.div`
 `
 
 interface StatusTime {
-    statusName: string
-    category: string
-    hours: number
+  statusName: string
+  category: string
+  hours: number
 }
 
 interface Issue {
-    key: string
-    statusTimes?: StatusTime[]
-    fields?: {
-        [key: string]: any
-    }
+  key: string
+  statusTimes?: StatusTime[]
+  fields?: {
+    [key: string]: any
+  }
 }
 
 interface FlowEfficiencyProps {
-    issues: Issue[]
-    statusChangelog?: Map<string, StatusTime[]>
+  issues: Issue[]
+  statusChangelog?: Map<string, StatusTime[]>
 }
 
 export default function FlowEfficiencyPanel({ issues, statusChangelog }: FlowEfficiencyProps) {
-    const efficiency = useMemo(() => {
-        let totalActiveHours = 0
-        let totalWaitHours = 0
-        let issuesWithData = 0
+  const efficiency = useMemo(() => {
+    let totalActiveHours = 0
+    let totalWaitHours = 0
+    let issuesWithData = 0
 
-        for (const issue of issues) {
-            // Try to get status times from issue or changelog
-            const times = issue.statusTimes || statusChangelog?.get(issue.key)
-            if (!times || times.length === 0) continue
+    for (const issue of issues) {
+      // Try to get status times from issue or changelog
+      const times = issue.statusTimes || statusChangelog?.get(issue.key)
+      if (!times || times.length === 0) continue
 
-            issuesWithData++
+      issuesWithData++
 
-            for (const time of times) {
-                const cat = time.category?.toLowerCase() || ''
-                // Active = in progress statuses
-                // Wait = todo or blocked statuses
-                if (cat === 'indeterminate' || cat.includes('progress')) {
-                    totalActiveHours += time.hours
-                } else if (cat === 'new' || cat.includes('todo') || cat.includes('wait') || cat.includes('block')) {
-                    totalWaitHours += time.hours
-                }
-            }
+      for (const time of times) {
+        const cat = time.category?.toLowerCase() || ''
+        // Active = in progress statuses
+        // Wait = todo or blocked statuses
+        if (cat === 'indeterminate' || cat.includes('progress')) {
+          totalActiveHours += time.hours
+        } else if (cat === 'new' || cat.includes('todo') || cat.includes('wait') || cat.includes('block')) {
+          totalWaitHours += time.hours
         }
-
-        const totalHours = totalActiveHours + totalWaitHours
-        const efficiencyPercent = totalHours > 0
-            ? Math.round((totalActiveHours / totalHours) * 100)
-            : 0
-
-        return {
-            activeHours: Math.round(totalActiveHours),
-            waitHours: Math.round(totalWaitHours),
-            totalHours: Math.round(totalHours),
-            percent: efficiencyPercent,
-            issuesWithData,
-            hasData: issuesWithData > 0
-        }
-    }, [issues, statusChangelog])
-
-    // Mock data if no changelog available (common case)
-    const displayData = efficiency.hasData ? efficiency : {
-        activeHours: 48,
-        waitHours: 72,
-        totalHours: 120,
-        percent: 40,
-        issuesWithData: 0,
-        hasData: false
+      }
     }
 
-    const rating = displayData.percent >= 40 ? 'Excellent' :
-        displayData.percent >= 20 ? 'Moderate' :
-            'Needs Improvement'
+    const totalHours = totalActiveHours + totalWaitHours
+    const efficiencyPercent = totalHours > 0
+      ? Math.round((totalActiveHours / totalHours) * 100)
+      : 0
 
-    return (
-        <Container>
-            <Header>
-                <Title>⚡ Engine Efficiency</Title>
-                <Badge $efficiency={displayData.percent}>{rating}</Badge>
-            </Header>
+    return {
+      activeHours: Math.round(totalActiveHours),
+      waitHours: Math.round(totalWaitHours),
+      totalHours: Math.round(totalHours),
+      percent: efficiencyPercent,
+      issuesWithData,
+      hasData: issuesWithData > 0
+    }
+  }, [issues, statusChangelog])
 
-            <GaugeContainer>
-                <GaugeOuter>
-                    <GaugeArc />
-                    <GaugeFill $percent={displayData.percent} />
-                    <GaugeLabel>
-                        <GaugeValue $efficiency={displayData.percent}>
-                            {displayData.percent}%
-                        </GaugeValue>
-                        <GaugeUnit>Flow Efficiency</GaugeUnit>
-                    </GaugeLabel>
-                </GaugeOuter>
-            </GaugeContainer>
+  // No mock data - show real values or indicate no data
+  const displayData = efficiency.hasData ? efficiency : {
+    activeHours: 0,
+    waitHours: 0,
+    totalHours: 0,
+    percent: 0,
+    issuesWithData: 0,
+    hasData: false
+  }
 
-            <StatsRow>
-                <StatItem $color="#39FF14">
-                    <StatLabel>Active Time</StatLabel>
-                    <StatValue $color="#39FF14">{displayData.activeHours}h</StatValue>
-                </StatItem>
-                <StatItem $color="#FF8C00">
-                    <StatLabel>Wait Time</StatLabel>
-                    <StatValue $color="#FF8C00">{displayData.waitHours}h</StatValue>
-                </StatItem>
-                <StatItem $color="#8B5CF6">
-                    <StatLabel>Total Time</StatLabel>
-                    <StatValue $color="#8B5CF6">{displayData.totalHours}h</StatValue>
-                </StatItem>
-            </StatsRow>
+  const rating = displayData.hasData
+    ? (displayData.percent >= 40 ? 'Excellent' :
+      displayData.percent >= 20 ? 'Moderate' : 'Needs Improvement')
+    : 'No Data'
 
-            <Explanation>
-                {!efficiency.hasData
-                    ? '📊 Based on typical patterns. Enable changelog for exact data.'
-                    : `Active work: ${displayData.percent}% of total time in statuses`
-                }
-            </Explanation>
-        </Container>
-    )
+  return (
+    <Container>
+      <Header>
+        <Title>⚡ Engine Efficiency</Title>
+        <Badge $efficiency={displayData.percent}>{rating}</Badge>
+      </Header>
+
+      {displayData.hasData ? (
+        <>
+          <GaugeContainer>
+            <GaugeOuter>
+              <GaugeArc />
+              <GaugeFill $percent={displayData.percent} />
+              <GaugeLabel>
+                <GaugeValue $efficiency={displayData.percent}>
+                  {displayData.percent}%
+                </GaugeValue>
+                <GaugeUnit>Flow Efficiency</GaugeUnit>
+              </GaugeLabel>
+            </GaugeOuter>
+          </GaugeContainer>
+
+          <StatsRow>
+            <StatItem $color="#39FF14">
+              <StatLabel>Active Time</StatLabel>
+              <StatValue $color="#39FF14">{displayData.activeHours}h</StatValue>
+            </StatItem>
+            <StatItem $color="#FF8C00">
+              <StatLabel>Wait Time</StatLabel>
+              <StatValue $color="#FF8C00">{displayData.waitHours}h</StatValue>
+            </StatItem>
+            <StatItem $color="#8B5CF6">
+              <StatLabel>Total Time</StatLabel>
+              <StatValue $color="#8B5CF6">{displayData.totalHours}h</StatValue>
+            </StatItem>
+          </StatsRow>
+
+          <Explanation>
+            Active work: {displayData.percent}% of total time in statuses
+          </Explanation>
+        </>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '24px', color: '#888', fontSize: '11px' }}>
+          📊 Flow efficiency requires status changelog data.<br />
+          <span style={{ opacity: 0.7 }}>Enable 'expand=changelog' for accurate metrics.</span>
+        </div>
+      )}
+    </Container>
+  )
 }

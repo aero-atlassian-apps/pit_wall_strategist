@@ -8,7 +8,7 @@
  */
 
 import { JiraBoardRepository } from '../../infrastructure/jira/JiraBoardRepository';
-import { LegacyTelemetryAdapter } from '../../infrastructure/services/LegacyTelemetryAdapter';
+import { TelemetryService } from '../../infrastructure/services/TelemetryService';
 import { getEffectiveConfig } from '../config/ConfigResolvers';
 import { mockDevOps } from '../mocks';
 import { getAdvancedAnalytics } from '../advancedAnalytics';
@@ -43,8 +43,8 @@ export function registerAnalyticsResolvers(resolver: any): void {
             if (boardData.sprint?.endDate) sprintEndDate = new Date(boardData.sprint.endDate);
 
             // Get field cache for story points field name
-            const fields = await LegacyTelemetryAdapter.discoverCustomFields();
-            const storyPointsField = fields.storyPoints || 'customfield_10040';
+            const fields = await TelemetryService.discoverCustomFields();
+            const storyPointsFields = fields.storyPoints || [];
 
             // Calculate advanced analytics
             const analytics = await getAdvancedAnalytics(
@@ -56,8 +56,9 @@ export function registerAnalyticsResolvers(resolver: any): void {
                     historicalVelocity: userConfig.assigneeCapacity * 5 || 20,
                     stalledThresholdHours: userConfig.stalledThresholdHours || 24,
                     wipLimitPerPerson: userConfig.assigneeCapacity || 3,
-                    storyPointsField
-                }
+                    storyPointsFields
+                },
+                boardData.boardType // Pass board context
             );
 
             console.log(`[Analytics] Sprint Health: ${analytics.sprintHealth.status} (${analytics.sprintHealth.score}%)`);
