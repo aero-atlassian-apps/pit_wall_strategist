@@ -9,7 +9,9 @@
  * - Smart Capacity Analysis
  */
 
-import type { JiraIssue, StatusCategoryKey } from '../types/jira'
+import type { JiraIssue } from '../types/jira'
+import { resolveCategoryFromId } from './statusMap'
+import { MetricValidity, DEFAULT_METRIC_VALIDITY } from '../domain/types/Context'
 
 // ============================================================================
 // TYPES
@@ -17,7 +19,7 @@ import type { JiraIssue, StatusCategoryKey } from '../types/jira'
 
 export interface SprintHealthPrediction {
     score: number // 0-100
-    status: 'GREEN_FLAG' | 'YELLOW_FLAG' | 'RED_FLAG'
+    status: 'GREEN_FLAG' | 'YELLOW_FLAG' | 'RED_FLAG' | 'NOT_APPLICABLE'
     message: string
     factors: {
         velocityFactor: number
@@ -80,6 +82,7 @@ export interface AdvancedAnalytics {
         addedCount: number
         addedPoints: number
         message: string
+        notApplicable?: boolean
     }
 }
 
@@ -91,10 +94,23 @@ export function calculateSprintHealth(
     issues: JiraIssue[],
     sprintStartDate: Date | null,
     sprintEndDate: Date | null,
+    validity: MetricValidity = DEFAULT_METRIC_VALIDITY,
     historicalVelocity: number = 20,
     storyPointsFields: string[] = [],
-    boardType: string = 'scrum'
+    boardType: string = 'scrum',
+    stalledThresholdHours: number = 24
 ): SprintHealthPrediction {
+    // STRICT CHECK: If sprintHealth is hidden, return early
+    if (validity.sprintHealth === 'hidden') {
+        return {
+            score: 0,
+            status: 'NOT_APPLICABLE',
+            message: 'Sprint health not applicable to this context.',
+            factors: { velocityFactor: 0, timeFactor: 0, stalledFactor: 0, scopeFactor: 0 },
+            recommendation: ''
+        };
+    }
+
     const now = new Date()
 
     // Context-aware Terminology
@@ -104,7 +120,7 @@ export function calculateSprintHealth(
     const doneIssues = issues.filter(i => i.fields.status?.statusCategory?.key === 'done')
     const totalIssues = issues.length
     const inProgressIssues = issues.filter(i => i.fields.status?.statusCategory?.key === 'indeterminate')
-    const stalledCount = issues.filter(i => isStalled(i)).length
+    const stalledCount = issues.filter(i => isStalled(i, stalledThresholdHours)).length
 
     // Story points calculation
     const getPoints = (issue: JiraIssue) => {
@@ -121,7 +137,6 @@ export function calculateSprintHealth(
     const totalPoints = issues.reduce((sum, i) => sum + getPoints(i), 0);
 
     // Progress metrics - fallback to counts only if explicitly no points found and it's not a restricted project
-    // Actually, clean logic: if points mode and total points > 0, use points. Else use counts.
     const usePoints = isPointsMode && totalPoints > 0;
     const actualProgress = usePoints ? (completedPoints / totalPoints) : (doneIssues.length / (totalIssues || 1));
 
@@ -143,8 +158,6 @@ export function calculateSprintHealth(
     }
 
     // Velocity / Pace factor (normalized to historical or commitment)
-    // If we completed 10 points and historical is 20, but we are only 25% through, pace is good.
-    // expectedVelocityAtThisTime = historicalVelocity * expectedProgress
     let velocityFactor = 1.0;
     if (sprintStartDate && sprintEndDate && historicalVelocity > 0) {
         const sprintDuration = sprintEndDate.getTime() - sprintStartDate.getTime();
@@ -169,10 +182,6 @@ export function calculateSprintHealth(
     const scopeFactor = Math.max(0, 1 - wipPenalty);
 
     // Combined score (Weighted)
-    // Time tracking is most important for health (35%)
-    // Pace relative to history (25%)
-    // Blocking/Stalling (25%)
-    // WIP/Process health (15%)
     const rawScore = (
         (timeFactor * 0.35) +
         (velocityFactor * 0.25) +
@@ -510,20 +519,64 @@ export function analyzeTeamCapacity(
 // SCOPE CREEP DETECTOR
 // ============================================================================
 
+/**
+ * M-009 FIX: Detect scope creep by checking both issue creation AND sprint field changes in changelog.
+ * An issue added mid-sprint may have been created before the sprint started.
+ */
 export function detectScopeCreep(
     issues: JiraIssue[],
     sprintStartDate: Date | null,
+    validity: MetricValidity = DEFAULT_METRIC_VALIDITY,
     storyPointsFields: string[] = []
-): { detected: boolean; addedCount: number; addedPoints: number; message: string } {
-    if (!sprintStartDate) {
-        return { detected: false, addedCount: 0, addedPoints: 0, message: 'No sprint start date available' }
+): { detected: boolean; addedCount: number; addedPoints: number; message: string; addedMidSprint: number; notApplicable?: boolean } {
+
+    // STRICT CHECK: If Scope Creep is hidden (e.g. Kanban/Business), return valid N/A state
+    if (validity.scopeCreep === 'hidden') {
+        return {
+            detected: false,
+            addedCount: 0,
+            addedPoints: 0,
+            message: 'Scope tracking not applicable in this context.',
+            addedMidSprint: 0,
+            notApplicable: true
+        }
     }
+
+    if (!sprintStartDate) {
+        return { detected: false, addedCount: 0, addedPoints: 0, message: 'No sprint start date available', addedMidSprint: 0, notApplicable: true }
+    }
+
+    const sprintStartTime = sprintStartDate.getTime();
+    let addedMidSprint = 0;
 
     const addedAfterStart = issues.filter(issue => {
         const createdStr = issue.fields.created
         if (!createdStr) return false
-        const created = new Date(createdStr)
-        return created > sprintStartDate
+        const createdTime = new Date(createdStr).getTime()
+
+        // Case 1: Issue was created after sprint started
+        if (createdTime > sprintStartTime) {
+            return true
+        }
+
+        // Case 2 (M-009): Issue existed before but was ADDED to sprint after start
+        // Check changelog for sprint field changes
+        if (issue.changelog?.histories) {
+            for (const h of issue.changelog.histories) {
+                const historyTime = new Date(h.created!).getTime();
+                if (historyTime > sprintStartTime) {
+                    const sprintChange = h.items?.find((it: any) =>
+                        it.field === 'Sprint' || it.field?.toLowerCase().includes('sprint')
+                    );
+                    if (sprintChange) {
+                        addedMidSprint++;
+                        return true; // Issue was moved into sprint mid-sprint
+                    }
+                }
+            }
+        }
+
+        return false;
     })
 
     const addedCount = addedAfterStart.length
@@ -543,12 +596,12 @@ export function detectScopeCreep(
     if (!detected) {
         message = 'Scope stable. No significant additions.'
     } else if (addedCount <= 3) {
-        message = `Minor scope increase: ${addedCount} issue(s) added.`
+        message = `Minor scope increase: ${addedCount} issue(s) added${addedMidSprint > 0 ? ` (${addedMidSprint} moved mid-sprint)` : ''}.`
     } else {
-        message = `⚠️ Significant scope increase: ${addedCount} issues (${addedPoints} pts) added during period!`
+        message = `⚠️ Significant scope increase: ${addedCount} issues (${addedPoints} pts) added${addedMidSprint > 0 ? ` (${addedMidSprint} moved mid-sprint)` : ''}!`
     }
 
-    return { detected, addedCount, addedPoints, message }
+    return { detected, addedCount, addedPoints, message, addedMidSprint }
 }
 
 // ============================================================================
@@ -560,41 +613,96 @@ function isStalled(issue: JiraIssue, thresholdHours: number = 24): boolean {
     return getHoursInCurrentStatus(issue) > thresholdHours
 }
 
+/**
+ * B-002 FIX: Use changelog to find when status ACTUALLY changed.
+ */
 function getHoursInCurrentStatus(issue: JiraIssue): number {
+    const histories = issue.changelog?.histories || []
+
+    // Search from most recent to oldest for last status change
+    for (let i = histories.length - 1; i >= 0; i--) {
+        const h = histories[i]
+        const statusChange = (h.items || []).find((it: any) => it.field === 'status')
+        if (statusChange && h.created) {
+            // Found the last status change - calculate time since then
+            const changeTime = new Date(h.created).getTime()
+            return (Date.now() - changeTime) / (1000 * 60 * 60)
+        }
+    }
+
+    // No changelog available: Fallback to created date for new issues,
+    const created = issue.fields.created
+    if (created) {
+        const createdTime = new Date(created).getTime()
+        const updatedTime = issue.fields.updated ? new Date(issue.fields.updated).getTime() : createdTime
+
+        // If created and updated are very close, this is likely a new issue
+        if (updatedTime - createdTime < 60000) { // Within 1 minute
+            return (Date.now() - createdTime) / (1000 * 60 * 60)
+        }
+    }
+
+    // Final fallback: use updated (less accurate but better than 0)
     const updatedStr = issue.fields.updated
     if (!updatedStr) return 0
-    const updated = new Date(updatedStr)
-    const now = new Date()
-    return (now.getTime() - updated.getTime()) / (1000 * 60 * 60)
+    return (Date.now() - new Date(updatedStr).getTime()) / (1000 * 60 * 60)
 }
 
-function getDaysInProgress(issue: JiraIssue): number {
-    // Try to find when issue first entered 'In Progress' from changelog
+/**
+ * B-001 FIX: Use status category from changelog instead of heuristic name matching.
+ * CHAMELEON COMPLIANT: No string guessing.
+ */
+function getDaysInProgress(issue: JiraIssue, statusMap?: any): number {
     const histories = issue.changelog?.histories || []
     let inProgressStart: number | null = null
 
-    for (const h of histories) {
+    // Sort histories chronologically
+    const sortedHistories = [...histories].sort(
+        (a, b) => new Date(a.created!).getTime() - new Date(b.created!).getTime()
+    )
+
+    for (const h of sortedHistories) {
         const statusChange = (h.items || []).find((it: any) => it.field === 'status')
         if (statusChange) {
-            // Check if transition is TO an in-progress status
-            const toStatus = (statusChange.toString || '').toLowerCase()
-            if (toStatus.includes('progress') || toStatus.includes('doing') || toStatus.includes('review') ||
-                toStatus.includes('development') || toStatus.includes('active')) {
+            const toId = statusChange.to
+            const toName = (statusChange.toString || '').toLowerCase()
+
+            // B-001 FIX: Chameleon-compliant status category detection
+            let isInProgress = false
+
+            // Priority 1: Check if changelog item includes statusCategory (newer Jira API)
+            const toCategoryKey = (statusChange as any).toStatusCategory?.key
+            if (toCategoryKey) {
+                isInProgress = toCategoryKey === 'indeterminate'
+            }
+            // Priority 2: Use statusMap lookup by ID
+            else if (statusMap && toId) {
+                const resolvedCat = resolveCategoryFromId(statusMap, toId)
+                if (resolvedCat) {
+                    isInProgress = resolvedCat === 'indeterminate'
+                }
+            }
+            // NO HEURISTIC FALLBACKS. If we don't know, we don't guess.
+
+            if (isInProgress) {
                 inProgressStart = new Date(h.created!).getTime()
                 break // Use first in-progress transition
             }
         }
     }
 
-    // Fallback: if no changelog, use created date as proxy
+    // Fallback: if no changelog or no in-progress found, use created date as proxy
+    // IF the current status is known to be indeterminate.
     if (!inProgressStart) {
-        const createdStr = issue.fields.created
-        if (!createdStr) return 0
-        inProgressStart = new Date(createdStr).getTime()
+        if (issue.fields.status?.statusCategory?.key === 'indeterminate') {
+            const createdStr = issue.fields.created
+            if (createdStr) inProgressStart = new Date(createdStr).getTime()
+        }
     }
 
-    const now = new Date()
-    return (now.getTime() - inProgressStart) / (1000 * 60 * 60 * 24)
+    if (!inProgressStart) return 0; // Not in progress
+
+    return (Date.now() - inProgressStart) / (1000 * 60 * 60 * 24)
 }
 
 function getDaysToComplete(issue: JiraIssue): number {
@@ -616,6 +724,7 @@ export async function getAdvancedAnalytics(
     projectKey: string,
     sprintStartDate: Date | null,
     sprintEndDate: Date | null,
+    validity: MetricValidity, // NEW REQUIRED ARG
     config: {
         historicalVelocity?: number
         stalledThresholdHours?: number
@@ -631,9 +740,9 @@ export async function getAdvancedAnalytics(
         storyPointsFields = []
     } = config
 
-    // Calculate all analytics
+    // Calculate all analytics - C-009 FIX: Pass threshold to sprintHealth
     const sprintHealth = calculateSprintHealth(
-        issues, sprintStartDate, sprintEndDate, historicalVelocity, storyPointsFields, boardType
+        issues, sprintStartDate, sprintEndDate, validity, historicalVelocity, storyPointsFields, boardType, stalledThresholdHours
     )
 
     const preStallWarnings = detectPreStallWarnings(issues, stalledThresholdHours)
@@ -644,7 +753,7 @@ export async function getAdvancedAnalytics(
 
     const teamCapacity = analyzeTeamCapacity(issues, wipLimitPerPerson)
 
-    const scopeCreep = detectScopeCreep(issues, sprintStartDate, storyPointsFields)
+    const scopeCreep = detectScopeCreep(issues, sprintStartDate, validity, storyPointsFields)
 
     return {
         sprintHealth,

@@ -115,9 +115,10 @@ export class CycleTimeCalculator {
         const max = hours(durationsMs[count - 1]);
 
         const avgDays = Math.round(avg / 24 * 10) / 10;
+        // C-005 FIX: Clearly indicate when fallback to Lead Time is used
         const explanation = method === 'Changelog'
             ? `exp:cycleTimeChangelog:count=${count}:days=${avgDays}`
-            : `exp:cycleTimeResolution:count=${count}:days=${avgDays}`;
+            : `exp:cycleTimeLeadTimeFallback:count=${count}:days=${avgDays}`;
 
         return {
             avgHours: avg,

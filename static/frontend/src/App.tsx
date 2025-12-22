@@ -54,10 +54,19 @@ function InnerApp() {
   const { context, boardId, boardName, sprintStatus } = useBoardContext()
   const { projectType, boardStrategy, locale: contextLocale } = context;
 
-  // Legacy bridge: Derive "boardType" string for components that still need it
-  let boardType = boardStrategy as any;
-  if (projectType === 'business') boardType = 'business';
-  if (boardStrategy === 'none' && projectType !== 'business') boardType = 'kanban'; // Fallback
+  // UI Theme Mapping (Derived strictly from Canonical Context)
+  // Maps backend context to frontend component themes (Scrum/Kanban/Business)
+  let boardType: 'scrum' | 'kanban' | 'business';
+
+  if (projectType === 'business') {
+    boardType = 'business';
+  } else if (boardStrategy === 'scrum') {
+    boardType = 'scrum';
+  } else {
+    // Fallback for Software projects with No Board, or Kanban Board
+    // We default to 'kanban' theme (Flow-based) as it's the safest UI for unstructured work
+    boardType = 'kanban';
+  }
 
   // Data Hook
   const {

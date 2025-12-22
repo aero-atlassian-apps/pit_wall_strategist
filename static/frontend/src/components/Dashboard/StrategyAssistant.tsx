@@ -229,8 +229,10 @@ export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, on
 
   return (
     <Panel title={t('strategyAssistant', locale)} rightAction={HeaderActions}>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-        <RadioFeed style={{ flex: 1, minHeight: 0 }}>
+      {/* Fixed layout: flex column with max-height ensures Button is always visible */}
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '400px', overflow: 'hidden' }}>
+        {/* Scrollable feed area */}
+        <RadioFeed style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           {recommendations.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontFamily: 'var(--font-stack-mono)', fontSize: '12px', opacity: 0.8, textAlign: 'center', padding: '16px' }}>
               {t('flowOptimalHint', locale)}
@@ -260,7 +262,8 @@ export default function StrategyAssistant({ feed = [], alertActive, onBoxBox, on
           )}
         </RadioFeed>
 
-        <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}>
+        {/* Sticky Button Area - always visible at bottom */}
+        <div style={{ flexShrink: 0, paddingTop: '16px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
           <BoxBoxButton $active={alertActive || recommendations.some(r => r.relevance.relevance === 'critical')} onClick={onBoxBox}>
             {t('boxboxCritical', locale) || 'BOX BOX'}
           </BoxBoxButton>

@@ -192,58 +192,46 @@ sequenceDiagram
 
 ---
 
-## Metric Validity System
 
-The app uses a **context-aware metric validity system** to show/hide metrics based on project type and board strategy.
+## Metric Validity System (Chameleon Mode)
+
+The app implements **"Chameleon Mode"**, ensuring it adapts perfectly to the environment (Business vs. Software, Scrum vs. Kanban) without making assumptions.
+
+**Core Principle**: The `Context Engine` is the Single Source of Truth.
 
 ```mermaid
 flowchart TB
-    subgraph Context[Context Detection]
-        PT[Project Type Detection]
-        BS[Board Strategy Detection]
+    subgraph Detection[Strict Context Detection]
+        API[Jira API] --> PT[Project Type]
+        API --> BS[Board Strategy]
+        API --> WF[Workflow Topology]
     end
     
     subgraph Engine[Context Engine]
-        MV[computeMetricValidity]
+        CE[getProjectContext] --> IC[InternalContext]
+        IC --> MV[MetricValidity]
     end
     
-    subgraph Metrics[Metric Categories]
-        SM[Sprint Metrics]
-        FM[Flow Metrics]
+    subgraph SemanticLock[Semantic Lock]
+        MV --> |Enforced in Backend| Analytics[Analytics Engine]
+        MV --> |Enforced in Frontend| UI[Telemetry Deck]
     end
     
-    PT --> Engine
-    BS --> Engine
-    Engine --> SM
-    Engine --> FM
+    PT --> CE
+    BS --> CE
     
-    SM --> |Scrum| V1[velocity: valid]
-    SM --> |Kanban/Business| V2[velocity: hidden]
-    FM --> |All| V3[cycleTime: valid]
+    Analytics --> |Gated Metrics| Payload
+    UI --> |Visual Toggles| Dashboard
 ```
 
-### Metric Validity Rules
+### Semantic Lock Rules
 
-| Context | Sprint Metrics | Flow Metrics |
-|---------|---------------|--------------|
-| **Scrum (Software)** | ✅ All visible | ✅ All visible |
-| **Kanban (Software)** | ❌ Hidden | ✅ All visible |
-| **Business (JWM)** | ❌ Hidden | ✅ All visible |
-
-### 10 Tracked Metrics
-
-| Category | Metric | Description |
-|----------|--------|-------------|
-| Sprint | `velocity` | Story points per sprint |
-| Sprint | `sprintHealth` | Sprint progress vs expected |
-| Sprint | `sprintProgress` | Completion percentage |
-| Sprint | `scopeCreep` | Scope changes mid-sprint |
-| Flow | `wip` | Work in progress count |
-| Flow | `wipConsistency` | WIP stability over time |
-| Flow | `cycleTime` | Time from start to done |
-| Flow | `leadTime` | Time from creation to done |
-| Flow | `throughput` | Items completed per period |
-| Flow | `flowEfficiency` | Active WIP / Total WIP |
+| Context | Sprint Health | Velocity | Scope Creep | Cycle Time | Flow Efficiency |
+|---------|---------------|----------|-------------|------------|-----------------|
+| **Scrum** | ✅ Valid | ✅ Valid | ✅ Valid | ✅ Valid | ❌ Hidden (Use Completion) |
+| **Kanban** | ❌ Hidden | ❌ Hidden | ❌ Hidden | ✅ Valid | ✅ Valid |
+| **Business** | ❌ Hidden | ❌ Hidden | ❌ Hidden | ✅ Valid | ✅ Valid |
+| **No Board** | ❌ Hidden | ❌ Hidden | ❌ Hidden | ✅ Valid | ✅ Valid |
 
 ---
 
@@ -253,7 +241,7 @@ flowchart TB
 - **Token-based pagination** for large result sets
 - **Retry with exponential backoff** on transient failures
 - **Permission validation** before data access
-- **Graceful degradation** when Agile features unavailable
+- **Graceful degradation** context-aware error handling
 
 ---
 
@@ -280,9 +268,7 @@ flowchart TB
 
 ## Known Limitations
 
-1. **Multiple boards**: Selects first board with active sprint
-2. **Cycle time sampling**: Uses changelog when available, falls back to resolution date
-3. **Subtask creation**: Dynamically discovers subtask issue type name
+1. **Subtask creation**: Dynamically discovers subtask issue type name (Standard Jira configuration assumed)
 
 ---
 

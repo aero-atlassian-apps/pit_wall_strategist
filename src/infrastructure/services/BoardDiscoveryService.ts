@@ -62,7 +62,8 @@ export class BoardDiscoveryService {
 
         const board = selected;
         console.log(`Detected board: ${board.name} (${board.id}) for project ${projectKey}`);
-        return { boardType: (board.type || 'scrum') as 'scrum' | 'kanban', boardId: board.id as number, boardName: board.name as string };
+        // C-002 FIX: Default to 'kanban' if type undefined - safer for flow-based metrics
+        return { boardType: (board.type || 'kanban') as 'scrum' | 'kanban', boardId: board.id as number, boardName: board.name as string };
     }
 
     /**

@@ -1,14 +1,29 @@
 import type { TelemetryData, CategorizedIssue, SectorTimes } from '../types/telemetry'
 
-export function mockTelemetry(): any {
+/**
+ * B-001 FIX: Context-aware mock telemetry
+ * @param boardType - Optional board type to simulate (defaults to 'scrum' for backwards compatibility)
+ */
+export function mockTelemetry(boardType: 'scrum' | 'kanban' | 'business' = 'scrum'): any {
+  const isScrum = boardType === 'scrum';
+  const isKanban = boardType === 'kanban';
+  const isBusiness = boardType === 'business';
+
+  // Context-aware naming
+  const periodName = isScrum ? 'Sprint 42' : (isKanban ? 'Flow Board' : 'Work Items');
+
   return {
-    boardType: 'scrum',
-    sprintStatus: 'CRITICAL',
-    sprintName: 'Sprint 42',
-    velocity: 24,
-    velocityDelta: -12,
-    velocityExplanation: 'Calculated from last 5 closed sprints',
-    completion: 35,
+    boardType,
+    // Sprint-specific fields only for Scrum
+    ...(isScrum && {
+      sprintStatus: 'CRITICAL',
+      sprintName: periodName,
+      velocity: 24,
+      velocityDelta: -12,
+      velocityExplanation: 'Calculated from last 5 closed sprints',
+      completion: 35,
+    }),
+    // Flow metrics for all board types
     wipLoad: 110,
     wipLimit: 8,
     wipCurrent: 9,
@@ -19,12 +34,12 @@ export function mockTelemetry(): any {
     teamBurnout: { sarah: 95, mike: 40, jess: 88 },
     issuesByStatus: { todo: 3, inProgress: 5, done: 2 },
     feed: [
-      { time: '09:00', msg: 'Green Flag. Sprint Race Started.', type: 'info' },
+      { time: '09:00', msg: isScrum ? 'Green Flag. Sprint Race Started.' : 'Green Flag. Flow Activated.', type: 'info' },
       { time: '10:30', msg: 'Sector 1 Clear.', type: 'success' },
       { time: '13:45', msg: 'WARN: TICKET-422 High Drag Detected.', type: 'warning' },
       { time: '14:00', msg: 'CRITICAL: TICKET-422 Stalled > 24h.', type: 'critical' }
     ],
-    stalledTickets: [{ key: 'TICKET-422', summary: 'Implement OAuth2 Backend', assignee: 'Sarah', status: 'In Progress', statusCategory: 'indeterminate', reason: 'API Spec Undefined' }],
+    stalledTickets: [{ key: 'TICKET-422', summary: 'Implement OAuth2 Backend', assignee: 'Sarah', status: 'Active', statusCategory: 'indeterminate', reason: 'API Spec Undefined' }],
     alertActive: true
   }
 }

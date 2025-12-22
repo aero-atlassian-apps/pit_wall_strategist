@@ -1,12 +1,14 @@
 /**
  * Context-Aware Metric Validity Tests
  * 
- * Tests the computeMetricValidity() logic from contextEngine.ts
+ * C-010 FIX: Tests now import the REAL computeMetricValidity() from contextEngine.ts
  * Ensures metrics are correctly hidden/shown based on project type and board strategy.
  */
 
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_METRIC_VALIDITY } from '../../src/domain/types/Context';
+import { DEFAULT_METRIC_VALIDITY, InternalContext } from '../../src/domain/types/Context';
+// C-010 FIX: Import real function instead of duplicating logic
+import { computeMetricValidity } from '../../src/resolvers/contextEngine';
 
 describe('DEFAULT_METRIC_VALIDITY', () => {
     it('should have all 10 metrics defined', () => {
@@ -28,37 +30,23 @@ describe('DEFAULT_METRIC_VALIDITY', () => {
 });
 
 describe('Metric Validity Rules', () => {
-    // Helper to simulate computeMetricValidity logic
-    const computeMetricValidity = (ctx: { projectType: string; boardStrategy: string }) => {
-        const v = { ...DEFAULT_METRIC_VALIDITY };
-
-        if (ctx.projectType === 'business') {
-            v.velocity = 'hidden';
-            v.sprintHealth = 'hidden';
-            v.sprintProgress = 'hidden';
-            v.scopeCreep = 'hidden';
-        }
-
-        if (ctx.boardStrategy === 'kanban') {
-            v.velocity = 'hidden';
-            v.sprintHealth = 'hidden';
-            v.sprintProgress = 'hidden';
-            v.scopeCreep = 'hidden';
-        }
-
-        // Flow metrics always valid
-        v.cycleTime = 'valid';
-        v.leadTime = 'valid';
-        v.wip = 'valid';
-        v.wipConsistency = 'valid';
-        v.throughput = 'valid';
-        v.flowEfficiency = 'valid';
-
-        return v;
-    };
+    // C-010 FIX: Helper creates InternalContext for testing with real function
+    const createTestContext = (overrides: Partial<InternalContext>): InternalContext => ({
+        projectKey: 'TEST',
+        projectName: 'Test Project',
+        projectType: 'software',
+        boardStrategy: 'scrum',
+        agileCapability: 'full',
+        estimationMode: 'storyPoints',
+        metricValidity: {},
+        workflow: { statusMap: {}, startStatuses: [], doneStatuses: [] },
+        locale: 'en',
+        ...overrides
+    });
 
     describe('Scrum Board (Software Project)', () => {
-        const ctx = { projectType: 'software', boardStrategy: 'scrum' };
+        // M-003 FIX: Added sprintId to simulate active sprint
+        const ctx = createTestContext({ projectType: 'software', boardStrategy: 'scrum', sprintId: 101 });
 
         it('should show velocity for scrum boards', () => {
             const validity = computeMetricValidity(ctx);
@@ -70,6 +58,13 @@ describe('Metric Validity Rules', () => {
             expect(validity.sprintHealth).toBe('valid');
         });
 
+        it('should hide sprint health for scrum boards with no active sprint', () => {
+            // Context without sprintId
+            const ctxNoSprint = createTestContext({ projectType: 'software', boardStrategy: 'scrum' });
+            const validity = computeMetricValidity(ctxNoSprint);
+            expect(validity.sprintHealth).toBe('hidden');
+        });
+
         it('should show all flow metrics', () => {
             const validity = computeMetricValidity(ctx);
             expect(validity.cycleTime).toBe('valid');
@@ -79,7 +74,7 @@ describe('Metric Validity Rules', () => {
     });
 
     describe('Kanban Board (Software Project)', () => {
-        const ctx = { projectType: 'software', boardStrategy: 'kanban' };
+        const ctx = createTestContext({ projectType: 'software', boardStrategy: 'kanban' });
 
         it('should hide velocity for kanban boards', () => {
             const validity = computeMetricValidity(ctx);
@@ -111,7 +106,7 @@ describe('Metric Validity Rules', () => {
     });
 
     describe('Business Project (JWM)', () => {
-        const ctx = { projectType: 'business', boardStrategy: 'none' };
+        const ctx = createTestContext({ projectType: 'business', boardStrategy: 'none' });
 
         it('should hide velocity for business projects', () => {
             const validity = computeMetricValidity(ctx);

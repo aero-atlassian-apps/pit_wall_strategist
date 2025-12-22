@@ -53,14 +53,30 @@ export class FieldDiscoveryService {
         return null;
     }
 
+    /**
+     * C-008 FIX: Prefer exact matches to avoid matching unrelated fields like "Re-Estimation Notes"
+     */
     private findAllFieldsByName(fields: any[], patterns: string[]): string[] {
         const ids = new Set<string>();
+
+        // First pass: exact name matches only
         fields.forEach(f => {
             const name = f.name?.toLowerCase() || '';
-            if (patterns.some(p => name.includes(p.toLowerCase()))) {
+            if (patterns.some(p => name === p.toLowerCase())) {
                 ids.add(f.id);
             }
         });
+
+        // If no exact matches found, fall back to substring matching
+        if (ids.size === 0) {
+            fields.forEach(f => {
+                const name = f.name?.toLowerCase() || '';
+                if (patterns.some(p => name.includes(p.toLowerCase()))) {
+                    ids.add(f.id);
+                }
+            });
+        }
+
         return Array.from(ids);
     }
 

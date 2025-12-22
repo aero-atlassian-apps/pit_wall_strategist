@@ -4,9 +4,23 @@ import { IssueCategorizer } from '../../resolvers/issue/IssueCategorizer';
 import { fieldDiscoveryService } from './FieldDiscoveryService';
 import { JiraDataService } from '../jira/JiraDataService';
 import { InternalContext } from '../../domain/types/Context';
+import { CycleTimeCalculator, StatusCategoryResolver } from '../../domain/metrics/CycleTimeCalculator';
+import { DomainIssue } from '../../domain/issue/DomainIssue';
+import { JiraStatusCategory } from '../../domain/issue/JiraStatusCategory';
 
 export class MetricCalculator {
-    constructor(private categorizer: IssueCategorizer, private config: TelemetryConfig) { }
+    private dataService: JiraDataService;
+
+    /**
+     * B-005 FIX: Accept optional JiraDataService for testability
+     */
+    constructor(
+        private categorizer: IssueCategorizer,
+        private config: TelemetryConfig,
+        dataService?: JiraDataService
+    ) {
+        this.dataService = dataService || new JiraDataService();
+    }
 
     /**
      * Calculates telemetry strictly adhering to the provided Canonical Context.
@@ -112,14 +126,16 @@ export class MetricCalculator {
     }
 
     // --- STRATEGY: Scrum Velocity ---
-    private async calculateScrumVelocity(boardData: BoardData, storyPointsFields: string[], context: InternalContext): Promise<{ velocity: number, explanation?: string, source?: string, window?: string }> {
+    private async calculateScrumVelocity(boardData: BoardData, storyPointsFields: string[], context: InternalContext): Promise<{ velocity: number | undefined, explanation?: string, source?: string, window?: string }> {
         const closedSprints = boardData.closedSprints || [];
 
         if (closedSprints.length === 0) {
-            return { velocity: 0, explanation: "exp:noClosedSprints", source: 'none', window: 'none' };
+            // FIX: Return undefined instead of 0 so frontend shows '--' not '0'
+            console.log('[MetricCalculator] No closed sprints found, velocity unavailable');
+            return { velocity: undefined, explanation: "exp:noClosedSprints", source: 'none', window: 'none' };
         }
 
-        const dataService = new JiraDataService();
+        // B-005 FIX: Use injected dataService instead of creating new instance
         const perSprintPoints: number[] = [];
         let missingData = false;
 
@@ -129,22 +145,49 @@ export class MetricCalculator {
 
             try {
                 // We rely on the Jira Service to respect permissions 
-                const issues = await dataService.getSprintIssues(s.id, fields, ['changelog'], 500);
+                const issues = await this.dataService.getSprintIssues(s.id, fields, ['changelog'], 500);
 
-                // If issues are empty but sprint is closed, it might be permission issue OR empty sprint. 
-                // We assume valid empty sprint if no error.
+                // Get sprint boundaries for VEL-002 fix
+                const sprintStart = s.startDate ? new Date(s.startDate).getTime() : 0;
+                const sprintEnd = s.completeDate ? new Date(s.completeDate).getTime() : (s.endDate ? new Date(s.endDate).getTime() : Number.MAX_SAFE_INTEGER);
 
                 const points = issues.reduce((sum, i) => {
                     const cat = this.categorizer.getStatusCategory(i);
                     // Strict Velocity: Only 'Done' items count.
                     if (cat !== this.config.statusCategories.done) return sum;
 
+                    // VEL-002 FIX: Only count issues resolved DURING the sprint
+                    // C-003 FIX: Use resolutiondate if available, otherwise check changelog for Done transition
+                    let resolutionDate = i.fields.resolutiondate ? new Date(i.fields.resolutiondate).getTime() : 0;
+
+                    // C-003: If no resolutiondate, try to find Done transition in changelog
+                    if (resolutionDate === 0 && i.changelog?.histories) {
+                        for (let h = i.changelog.histories.length - 1; h >= 0; h--) {
+                            const history = i.changelog.histories[h];
+                            const statusItem = history.items?.find((it: any) => it.field === 'status');
+                            if (statusItem) {
+                                // Check if transition was TO a Done status
+                                const toStatus = (statusItem.toString || '').toLowerCase();
+                                if (toStatus.includes('done') || toStatus.includes('closed') || toStatus.includes('resolved')) {
+                                    resolutionDate = new Date(history.created!).getTime();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (sprintStart > 0 && sprintEnd < Number.MAX_SAFE_INTEGER && resolutionDate > 0) {
+                        if (resolutionDate < sprintStart || resolutionDate > sprintEnd) {
+                            // Issue was resolved outside sprint boundaries - don't count
+                            return sum;
+                        }
+                    }
+
                     // Truth: Respect Estimation Mode
                     if (context.estimationMode === 'issueCount') {
                         return sum + 1;
                     }
 
-                    // Story Points Mode
                     // Story Points Mode: Check all candidate fields
                     let val = 0;
                     for (const fieldId of storyPointsFields) {
@@ -158,8 +201,9 @@ export class MetricCalculator {
                 }, 0);
                 perSprintPoints.push(points);
 
-            } catch (e) {
+            } catch (e: any) {
                 missingData = true;
+                console.warn(`[MetricCalculator] Failed to get issues for sprint ${s.id}:`, e?.message || e);
             }
         }
 
@@ -177,102 +221,66 @@ export class MetricCalculator {
         };
     }
 
-    // --- STRATEGY: Cycle Time ---
+    // --- STRATEGY: Cycle Time (Using Domain Calculator) ---
     private calculateCycleTime(historicalIssues: JiraIssue[], context: InternalContext): { avg: number, explanation?: string, window?: string } {
-        // Strict: We ONLY use changelog for Cycle Time to be accurate.
-        // If no changelog, we degrade to Resolution - Created (Lead Time) but label it clearly.
-
         const completedIssues = historicalIssues.filter(i => this.categorizer.getStatusCategory(i) === this.config.statusCategories.done);
         if (completedIssues.length === 0) return { avg: 0, explanation: "exp:noCompletedIssues", window: "none" };
 
-        let totalTime = 0;
-        let count = 0;
-        let method = 'changelog';
+        // Convert JiraIssues to DomainIssues for the domain calculator
+        const domainIssues = completedIssues.map(i => this.toDomainIssue(i));
 
-        // 1. Try Changelog
-        const issuesWithHistory = historicalIssues.filter(i => i.changelog && i.changelog.histories && i.changelog.histories.length > 0);
-
-        if (issuesWithHistory.length > 0) {
-            for (const issue of issuesWithHistory) {
-                if (this.categorizer.getStatusCategory(issue) !== this.config.statusCategories.done) continue;
-
-                const durationInfo = this.calculateIssueCycleTime(issue, context);
-                if (durationInfo !== null) {
-                    totalTime += durationInfo;
-                    count++;
-                }
+        // Create status resolver using context workflow
+        const statusResolver: StatusCategoryResolver = (statusName: string) => {
+            if (context.workflow?.statusMap) {
+                const cat = context.workflow.statusMap[statusName.toLowerCase()];
+                if (cat) return JiraStatusCategory.fromKey(cat);
             }
-        }
+            // Fallback heuristics
+            const name = statusName.toLowerCase();
+            if (['to do', 'new', 'open', 'backlog'].some(s => name.includes(s))) return JiraStatusCategory.TO_DO;
+            if (['done', 'closed', 'resolved', 'complete'].some(s => name.includes(s))) return JiraStatusCategory.DONE;
+            return JiraStatusCategory.IN_PROGRESS;
+        };
 
-        // 2. Fallback: Resolution - Created (Lead Time proxy)
-        if (count === 0) {
-            method = 'leadTimeProxy';
-            for (const issue of completedIssues) {
-                const created = new Date(issue.fields.created!).getTime();
-                const resolved = issue.fields.resolutiondate ? new Date(issue.fields.resolutiondate).getTime() : new Date(issue.fields.updated!).getTime();
-                if (resolved > created) {
-                    totalTime += (resolved - created);
-                    count++;
-                }
-            }
-        }
-
-        if (count === 0) return { avg: 0, explanation: "exp:insufficientData", window: "none" };
-
-        const avgHours = totalTime / count / (1000 * 60 * 60);
+        // Use domain CycleTimeCalculator which properly handles oscillation
+        const calculator = new CycleTimeCalculator();
+        const result = calculator.calculate(domainIssues, statusResolver);
 
         return {
-            avg: Math.round(avgHours),
-            explanation: `exp:cycleTime:${method}:count=${count}`,
-            window: `${count} issues`
+            avg: result.avgHours,
+            explanation: result.explanation,
+            window: result.window
         };
     }
 
-    private calculateIssueCycleTime(issue: JiraIssue, context: InternalContext): number | null {
-        if (!issue.changelog?.histories) return null;
-
-        const histories = issue.changelog.histories.sort((a, b) => new Date(a.created!).getTime() - new Date(b.created!).getTime());
-        let startTime: number | null = null;
-
-        // STRICT CONTEXT: Use Workflow Topology for accurate, locale-agnostic detection
-        const { statusMap } = context.workflow;
-
-        for (const h of histories) {
-            const item = h.items.find((i: any) => i.field === 'status');
-            if (!item) continue;
-
-            const toId = item.to;
-
-            // Resolve Category
-            let category = 'indeterminate'; // Default Assumption
-
-            if (statusMap && toId && statusMap[toId]) {
-                // FAST PATH: We have the ID and the Map. Absolute Truth.
-                category = statusMap[toId] as any;
-            } else {
-                // FALLBACK PATH: Unmapped ID or Missing Map.
-                // We must log this as a potential accuracy risk in a real system, but here we fallback to heuristics.
-                // This is "Degraded" accuracy but better than nothing for now.
-                const name = (item.toString || '').toLowerCase();
-
-                // Heuristics for standard English/French terms if map fails
-                if (['to do', 'new', 'open', 'backlog', 'create', 'à faire', 'nouveau'].some(s => name.includes(s))) category = 'new';
-                else if (['done', 'closed', 'resolved', 'complete', 'terminé', 'résolu'].some(s => name.includes(s))) category = 'done';
-            }
-
-            // Check if this transition starts the cycle (First entry into 'indeterminate')
-            if (category === 'indeterminate' && startTime === null) {
-                startTime = new Date(h.created!).getTime();
-            }
-        }
-
-        const endTime = issue.fields.resolutiondate ? new Date(issue.fields.resolutiondate).getTime() : new Date(issue.fields.updated!).getTime();
-
-        if (startTime && endTime > startTime) {
-            return endTime - startTime;
-        }
-
-        return null;
+    // Adapter: Convert JiraIssue to DomainIssue for domain calculators
+    private toDomainIssue(issue: JiraIssue): DomainIssue {
+        const catKey = issue.fields.status?.statusCategory?.key || 'indeterminate';
+        return {
+            key: issue.key,
+            summary: issue.fields.summary,
+            statusCategory: JiraStatusCategory.fromKey(catKey),
+            statusName: issue.fields.status?.name,
+            created: new Date(issue.fields.created || 0),
+            updated: issue.fields.updated ? new Date(issue.fields.updated) : undefined,
+            resolved: issue.fields.resolutiondate ? new Date(issue.fields.resolutiondate) : undefined,
+            assigneeName: issue.fields.assignee?.displayName,
+            assigneeAccountId: issue.fields.assignee?.accountId,
+            issueType: issue.fields.issuetype?.name,
+            priority: issue.fields.priority?.name,
+            labels: issue.fields.labels,
+            isFlagged: !!(issue.fields as any).flagged,
+            changelog: issue.changelog ? {
+                histories: (issue.changelog.histories || []).map((h: any) => ({
+                    created: h.created,
+                    items: (h.items || []).map((it: any) => ({
+                        field: it.field,
+                        fromString: it.fromString || '',
+                        toString: it.toString || ''
+                    }))
+                }))
+            } : undefined
+        };
     }
 
     // --- STRATEGY: Throughput ---
@@ -288,7 +296,16 @@ export class MetricCalculator {
 
         if (doneIssues.length === 0) return { rate: 0, explanation: "exp:noCompletedFound", window: "none" };
 
-        const dates = doneIssues.map(i => i.fields.resolutiondate ? new Date(i.fields.resolutiondate).getTime() : new Date(i.fields.updated!).getTime());
+        // THR-001 FIX: Track how many issues use fallback date
+        let fallbackDateCount = 0;
+        const dates = doneIssues.map(i => {
+            if (i.fields.resolutiondate) {
+                return new Date(i.fields.resolutiondate).getTime();
+            } else {
+                fallbackDateCount++;
+                return new Date(i.fields.updated!).getTime();
+            }
+        });
         const min = Math.min(...dates);
         const max = Math.max(...dates);
 
@@ -303,27 +320,42 @@ export class MetricCalculator {
         const weeks = days / 7;
         const rate = Math.round((doneIssues.length / weeks) * 10) / 10;
 
+        // Include fallback warning in explanation if used
+        const fallbackNote = fallbackDateCount > 0 ? `:fallback=${fallbackDateCount}` : '';
+
         return {
             rate,
-            explanation: `exp:throughputAvg:days=${Math.round(days)}`,
+            explanation: `exp:throughputAvg:days=${Math.round(days)}${fallbackNote}`,
             window: `${Math.round(days)} ${Math.round(days) === 1 ? 'day' : 'days'}`
         };
     }
 
+    /**
+     * C-006 FIX: Uses changelog for accurate stall detection instead of just 'updated' field
+     */
     private calculateFlowEfficiency(inProgressIssues: JiraIssue[]): number {
         const now = new Date();
         const stalledThreshold = this.config.stalledThresholdHours || 24;
 
         const active = inProgressIssues.filter(i => {
-            let lastActivityTime = new Date(i.fields.updated || 0).getTime();
+            // C-006 FIX: Prefer changelog for finding last status change
+            let lastActivityTime: number;
 
-            // Try to find the most recent status change in history
-            if (i.changelog?.histories) {
-                const histories = [...i.changelog.histories].sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+            if (i.changelog?.histories && i.changelog.histories.length > 0) {
+                // Find the most recent status change in history
+                const histories = [...i.changelog.histories].sort(
+                    (a, b) => new Date(b.created).getTime() - new Date(a.created).getTime()
+                );
                 const lastStatusChange = histories.find(h => h.items.some(it => it.field === 'status'));
                 if (lastStatusChange) {
                     lastActivityTime = new Date(lastStatusChange.created).getTime();
+                } else {
+                    // Has changelog but no status changes - use first history entry or fallback
+                    lastActivityTime = new Date(histories[0].created).getTime();
                 }
+            } else {
+                // No changelog - fallback to updated (less accurate)
+                lastActivityTime = new Date(i.fields.updated || i.fields.created || 0).getTime();
             }
 
             const hours = (now.getTime() - lastActivityTime) / (1000 * 60 * 60);
@@ -370,7 +402,8 @@ export class MetricCalculator {
 
         return {
             consistency: stdDev,
-            explanation: `exp:wipDeviation:val=${stdDev}`
+            // C-007 FIX: Document that this is an approximation
+            explanation: `exp:wipDeviationApprox:val=${stdDev}:note=lead_time_proxy`
         };
     }
 

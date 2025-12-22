@@ -56,7 +56,9 @@ export function registerRovoResolvers(resolver: any): void {
                 const sprintName = boardData.sprint?.name || boardData.boardName;
                 data = { telemetry, trends, sprintName, issues: boardData.issues, boardType: boardData.boardType };
             } else {
-                data = { telemetry: mockTelemetry(), trends: { direction: 'down', change: 12 }, sprintName: 'Local Sprint', issues: [], boardType: 'scrum' };
+                // C-003 FIX: Allow board type override in local mode for testing different contexts
+                const localBoardType = payload?.boardType || 'scrum';
+                data = { telemetry: mockTelemetry(localBoardType), trends: { direction: 'down', change: 12 }, sprintName: localBoardType === 'scrum' ? 'Local Sprint' : 'Local Flow', issues: [], boardType: localBoardType };
             }
 
             const lowerMsg = (message || '').toLowerCase();
@@ -152,7 +154,9 @@ export function registerRovoResolvers(resolver: any): void {
                 }
 
                 if (wipLoad > 100) {
-                    recommendations.push(`⛽ **Fuel Adjustment**: WIP at ${wipLoad}%. Defer lowest-priority items to next sprint.`);
+                    // M-001 FIX: Context-adaptive terminology
+                    const deferTarget = isKanban ? 'the backlog' : 'next sprint';
+                    recommendations.push(`⛽ **Fuel Adjustment**: WIP at ${wipLoad}%. Defer lowest-priority items to ${deferTarget}.`);
                 }
 
                 if (overloadedDrivers.length > 0) {
@@ -178,7 +182,9 @@ export function registerRovoResolvers(resolver: any): void {
                     const driverInsight = overloadedDrivers.length > 0
                         ? `\n\n⚠️ **Driver Alert**: ${overloadedDrivers[0][0]} may be affecting pace (${overloadedDrivers[0][1].stalled} stalled).`
                         : '';
-                    response = `🏎️ **Telemetry Report: Pace Analysis**\n\nCurrent Fuel Load (WIP) is **${data.telemetry.wipLoad}%**.\nVelocity is trending **${dir}** (${trend}% vs last sprint).${driverInsight}\n\n*Engineer's Call*: ${data.telemetry.wipLoad > 100 ? 'We are heavy on fuel. Box for a strategy adjustment.' : 'Pace is good. Push for the fastest lap.'}`;
+                    // M-002 FIX: Context-adaptive terminology for period comparison
+                    const periodLabel = isKanban ? 'last period' : 'last sprint';
+                    response = `🏎️ **Telemetry Report: Pace Analysis**\n\nCurrent Fuel Load (WIP) is **${data.telemetry.wipLoad}%**.\nVelocity is trending **${dir}** (${trend}% vs ${periodLabel}).${driverInsight}\n\n*Engineer's Call*: ${data.telemetry.wipLoad > 100 ? 'We are heavy on fuel. Box for a strategy adjustment.' : 'Pace is good. Push for the fastest lap.'}`;
                 }
             } else if (lowerMsg.includes('cycle') || lowerMsg.includes('lap time')) {
                 const cycleTime = data.timing?.cycleTime?.average || data.timing?.leadTime?.avgLapTime || '-';

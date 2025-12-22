@@ -4,6 +4,8 @@ import { MetricCalculator } from '../../src/infrastructure/services/MetricCalcul
 import { IssueCategorizer } from '../../src/resolvers/issue/IssueCategorizer';
 import { InternalContext } from '../../src/domain/types/Context';
 import { BoardData, TelemetryConfig } from '../../src/types/telemetry';
+import { CycleTimeCalculator } from '../../src/domain/metrics/CycleTimeCalculator';
+import { JiraStatusCategory } from '../../src/domain/issue/JiraStatusCategory';
 
 // Mock Dependencies
 const mockCategorizer = {
@@ -98,63 +100,71 @@ describe('Forensic Metric Validation', () => {
     });
 
     describe('Cycle Time (Strictness)', () => {
-        it('should use Workflow Topology ID map if available', () => {
-            const context = {
-                boardStrategy: 'kanban',
-                workflow: {
-                    statusMap: { '100': 'new', '101': 'indeterminate', '102': 'done' }
-                }
-            } as any;
+        // CHG-001 FIX: MetricCalculator now uses domain CycleTimeCalculator
+        // These tests validate the domain class which properly handles oscillation
+        const cycleCalc = new CycleTimeCalculator();
 
-            const issue = {
-                fields: { resolutiondate: '2023-01-02T12:00:00Z' }, // Done Time
+        const statusResolver = (name: string) => {
+            const n = name.toLowerCase();
+            if (['to do', 'new', 'backlog', '100'].includes(n)) return JiraStatusCategory.TO_DO;
+            if (['done', 'closed', '102'].includes(n)) return JiraStatusCategory.DONE;
+            return JiraStatusCategory.IN_PROGRESS;
+        };
+
+        it('should calculate cycle time from changelog using domain calculator', () => {
+            const domainIssue = {
+                key: 'TEST-1',
+                statusCategory: JiraStatusCategory.DONE,
+                created: new Date('2023-01-01T09:00:00Z'),
+                resolved: new Date('2023-01-02T12:00:00Z'),
                 changelog: {
                     histories: [
-                        { created: '2023-01-01T09:00:00Z', items: [{ field: 'status', to: '100' }] }, // New
-                        { created: '2023-01-01T12:00:00Z', items: [{ field: 'status', to: '101' }] }, // Indeterminate (Start)
-                        { created: '2023-01-02T12:00:00Z', items: [{ field: 'status', to: '102' }] }  // Done
+                        { created: '2023-01-01T09:00:00Z', items: [{ field: 'status', fromString: '', toString: 'To Do' }] },
+                        { created: '2023-01-01T12:00:00Z', items: [{ field: 'status', fromString: 'To Do', toString: 'In Progress' }] },
+                        { created: '2023-01-02T12:00:00Z', items: [{ field: 'status', fromString: 'In Progress', toString: 'Done' }] }
                     ]
                 }
             };
 
-            // Start: Jan 1 12:00. End: Jan 2 12:00. Duration: 24h.
-            const result = (calculator as any).calculateIssueCycleTime(issue, context);
-
-            expect(result).toBe(24 * 60 * 60 * 1000);
+            const result = cycleCalc.calculate([domainIssue], statusResolver);
+            // 24 hours from In Progress to Done
+            expect(result.avgHours).toBe(24);
         });
 
-        it('should return null if no transition to indeterminate found', () => {
-            const context = { workflow: { statusMap: {} } } as any;
-            const issue = {
-                fields: { resolutiondate: '2023-01-02T12:00:00Z' },
+        it('should handle issues without changelog gracefully', () => {
+            const domainIssue = {
+                key: 'TEST-2',
+                statusCategory: JiraStatusCategory.DONE,
+                created: new Date('2023-01-01T09:00:00Z'),
+                resolved: new Date('2023-01-02T12:00:00Z'),
                 changelog: { histories: [] }
             };
 
-            const result = (calculator as any).calculateIssueCycleTime(issue, context);
-            expect(result).toBeNull();
+            const result = cycleCalc.calculate([domainIssue], statusResolver);
+            // CycleTimeCalculator uses lead time fallback (resolved - created) when no status transitions
+            // 2023-01-01 09:00 to 2023-01-02 12:00 = 27 hours
+            expect(result.avgHours).toBe(27);
         });
 
-        it('should fallback to name matching if map missing (Degraded but working)', () => {
-            const context = { workflow: { statusMap: undefined } } as any;
-            const issue = {
-                fields: { resolutiondate: '2023-01-02T12:00:00Z' },
+        it('should handle oscillating status transitions correctly', () => {
+            const domainIssue = {
+                key: 'TEST-3',
+                statusCategory: JiraStatusCategory.DONE,
+                created: new Date('2023-01-01T00:00:00Z'),
+                resolved: new Date('2023-01-02T14:00:00Z'),
                 changelog: {
                     histories: [
-                        { created: '2023-01-01T10:00:00Z', items: [{ field: 'status', toString: 'In Progress' }] }
+                        { created: '2023-01-01T10:00:00Z', items: [{ field: 'status', fromString: 'To Do', toString: 'In Progress' }] },
+                        { created: '2023-01-01T14:00:00Z', items: [{ field: 'status', fromString: 'In Progress', toString: 'To Do' }] },
+                        { created: '2023-01-02T10:00:00Z', items: [{ field: 'status', fromString: 'To Do', toString: 'In Progress' }] },
+                        { created: '2023-01-02T14:00:00Z', items: [{ field: 'status', fromString: 'In Progress', toString: 'Done' }] }
                     ]
                 }
             };
-            // "In Progress" not in my fallback list?
-            // My list: ['to do', 'new'...] -> new. ['done'...] -> done.
-            // Indeterminate fallback is implicit?
-            // Wait, look at code: 
-            // let category = 'indeterminate'; // Default Assumption.
-            // So if it matches NOTHING in New/Done lists, it stays 'indeterminate'.
-            // "In Progress" does not match New or Done lists. So it is 'indeterminate'.
-            // So Start Time IS set.
 
-            const result = (calculator as any).calculateIssueCycleTime(issue, context);
-            expect(result).not.toBeNull();
+            const result = cycleCalc.calculate([domainIssue], statusResolver);
+            // Should accumulate both intervals: 4h + 4h = 8h
+            expect(result.avgHours).toBe(8);
         });
     });
 

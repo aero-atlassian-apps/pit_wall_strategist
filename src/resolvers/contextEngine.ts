@@ -52,6 +52,9 @@ export interface ExtendedProjectContext extends InternalContext {
     };
     // Explicitly match InternalContext's workflow type
     workflow: WorkflowTopology;
+    // B-003 FIX: Surface multi-board information
+    boardFallbackUsed?: boolean;
+    availableBoardCount?: number;
 }
 
 let contextCache: { [projectKey: string]: { context: ExtendedProjectContext; timestamp: number } } = {};
@@ -69,14 +72,14 @@ export async function getProjectContext(projectKey: string, requestedBoardId?: n
         return cached.context;
     }
 
-    // Default Initialization
+    // Default Initialization - SAFE DEFAULTS (No Assumptions)
     const ctx: ExtendedProjectContext = {
         projectKey,
         projectName: '',
-        projectType: 'software', // Assume software first, downgrade if needed
+        projectType: 'business', // Default to lowest capability (Business) until proven Software
         boardStrategy: 'none',
         agileCapability: 'none',
-        estimationMode: 'issueCount', // Default
+        estimationMode: 'issueCount',
         metricValidity: { ...DEFAULT_METRIC_VALIDITY },
         locale: 'en',
         workflow: {
@@ -101,42 +104,80 @@ export async function getProjectContext(projectKey: string, requestedBoardId?: n
     try {
         // 1. Fetch Project Info
         const projectResp = await api.asApp().requestJira(route`/rest/api/3/project/${projectKey}`, { headers: { Accept: 'application/json' } });
-        if (projectResp.ok) {
-            const project = await projectResp.json();
-            ctx.projectName = project.name || projectKey;
-
-            // Detect Business Projects (Jire Work Management)
-            // JWM projects often have projectTypeKey 'business'
-            if (project.projectTypeKey === 'business') {
-                ctx.projectType = 'business';
-            }
+        if (!projectResp.ok) {
+            throw new Error(`Failed to fetch project ${projectKey}`);
         }
 
-        // 2. Detect Board Strategy
+        const project = await projectResp.json();
+        ctx.projectName = project.name || projectKey;
+
+        // STRICT Project Type Detection
+        // Map Jira projectTypeKey to our internal ProjectType
+        // software -> software
+        // business -> business
+        // service_desk -> business (treated as non-agile for our purposes)
+        switch (project.projectTypeKey) {
+            case 'software':
+                ctx.projectType = 'software';
+                break;
+            case 'business':
+            case 'service_desk':
+            case 'service_management':
+            default:
+                ctx.projectType = 'business';
+                break;
+        }
+
+        // 2. Detect Board Strategy - STRICT (No Fallbacks)
+        // If specific board requested -> use it.
+        // If no board requested -> check if ONLY ONE board exists.
+        // If multiple boards exist and none requested -> DO NOT GUESS. Return 'none' strategy.
         const boardsResp = await api.asApp().requestJira(route`/rest/agile/1.0/board?projectKeyOrId=${projectKey}&maxResults=50`, { headers: { Accept: 'application/json' } });
         if (boardsResp.ok) {
             const boards = await boardsResp.json();
+            ctx.availableBoardCount = boards.values?.length || 0;
+
             if (boards.values && boards.values.length > 0) {
-                // Determine which board to use:
-                // 1. The requested board ID if provided and valid.
-                // 2. The first board found otherwise (legacy/default).
-                let board = boards.values[0];
+                let board = null;
+                ctx.boardFallbackUsed = false;
+
                 if (requestedBoardId) {
-                    const found = boards.values.find((b: any) => b.id === requestedBoardId);
-                    if (found) board = found;
+                    // Case A: Specific Board Requested
+                    board = boards.values.find((b: any) => b.id === requestedBoardId);
+                    if (!board) {
+                        console.warn(`[ContextEngine] Requested board ${requestedBoardId} not found.`);
+                    }
+                } else if (boards.values.length === 1) {
+                    // Case B: Exactly One Board (Ambiguity Free)
+                    board = boards.values[0];
+                } else {
+                    // Case C: Multiple Boards && No ID -> AMBIGUOUS.
+                    // DO NOT GUESS.
+                    console.warn(`[ContextEngine] Multiple boards found (${boards.values.length}). Ambiguous context. Waiting for user selection.`);
+                    // ctx.boardStrategy remains 'none'
                 }
 
-                ctx.boardId = board.id;
-                const type = (board.type || '').toLowerCase();
-
-                if (type === 'scrum') ctx.boardStrategy = 'scrum';
-                else if (type === 'kanban') ctx.boardStrategy = 'kanban';
-                else ctx.boardStrategy = 'none';
+                if (board) {
+                    ctx.boardId = board.id;
+                    const type = (board.type || '').toLowerCase();
+                    if (type === 'scrum') ctx.boardStrategy = 'scrum';
+                    else if (type === 'kanban') ctx.boardStrategy = 'kanban';
+                    // else remains 'none'
+                }
             }
         }
 
-        // 3. Fetch Board Config & Columns
-        if (ctx.boardId) {
+        // 2.5 Populate Workflow Topology (Early for Column Analysis)
+        // This is critical for deriving Done columns correctly via categories
+        const statusMapData = await getProjectStatusMap(projectKey);
+        ctx.workflow.statusMap = {};
+        Object.entries(statusMapData.byId).forEach(([id, entry]) => {
+            ctx.workflow.statusMap[id] = entry.category;
+            ctx.workflow.statusMap[entry.name.toLowerCase()] = entry.category;
+        });
+
+        // 3. Fetch Board Config & Columns (Only if we have a valid board strategy)
+        if (ctx.boardId && ctx.boardStrategy !== 'none') {
             const configResp = await api.asApp().requestJira(route`/rest/agile/1.0/board/${ctx.boardId}/configuration`, { headers: { Accept: 'application/json' } });
             if (configResp.ok) {
                 const config = await configResp.json();
@@ -148,12 +189,27 @@ export async function getProjectContext(projectKey: string, requestedBoardId?: n
                         statuses: (col.statuses || []).map((s: any) => ({ id: s.id, name: '', categoryKey: '' }))
                     }));
 
-                    const doneCol = ctx.columns.find(c => ['done', 'closed', 'complete'].includes(c.name.toLowerCase())) || ctx.columns[ctx.columns.length - 1];
-                    ctx.doneColumn = doneCol?.name || null;
+                    // C-002: STRICT DONE COLUMN DETECTION
+                    // Must contain at least one status with category 'done'
+                    let doneColName: string | null = null;
+
+                    // Find the rightmost column that contains at least one DONE status
+                    // Iterate backwards for efficiency as Done is usually at the end
+                    for (let i = ctx.columns.length - 1; i >= 0; i--) {
+                        const col = ctx.columns[i];
+                        const hasDoneStatus = col.statuses.some((s: any) => ctx.workflow.statusMap[s.id] === 'done');
+                        if (hasDoneStatus) {
+                            doneColName = col.name;
+                            break; // strict lock on first valid done column from right
+                        }
+                    }
+
+                    // ZERO ASSUMPTIONS: If no column has Done status, we do NOT set a doneColumn.
+                    // We do NOT guess by name "Done" or "Closed". Categories are the source of truth.
+                    ctx.doneColumn = doneColName;
                 }
 
                 // Detect Estimation Mode based on Board Config
-                // "estimation" object usually contains field info
                 if (config.estimation && config.estimation.field && config.estimation.field.displayName) {
                     const fieldName = config.estimation.field.displayName.toLowerCase();
                     if (fieldName.includes('story point') || fieldName.includes('story points')) {
@@ -170,13 +226,16 @@ export async function getProjectContext(projectKey: string, requestedBoardId?: n
             ctx.agileCapability = 'full';
         } else if (ctx.boardStrategy === 'kanban') {
             ctx.agileCapability = 'limited';
+        } else {
+            ctx.agileCapability = 'none'; // Fallback for software projects with no board/ambiguous board
         }
 
         // 5. Compute Metric Validity (STRICT RULES)
         ctx.metricValidity = computeMetricValidity(ctx);
 
-        // 6. Fetch Backlog & Sprints (If Scrum)
+        // 6. Fetch Backlog & Sprints (If Scrum and Active Board)
         if (ctx.boardStrategy === 'scrum' && ctx.boardId) {
+            // Only fetch active sprints
             const sprintResp = await api.asApp().requestJira(route`/rest/agile/1.0/board/${ctx.boardId}/sprint?state=active`, { headers: { Accept: 'application/json' } });
             if (sprintResp.ok) {
                 const sprints = await sprintResp.json();
@@ -207,17 +266,29 @@ export async function getProjectContext(projectKey: string, requestedBoardId?: n
         }
 
         // 8. Populate Workflow Topology (Strict Map)
-        const statusMapData = await getProjectStatusMap(projectKey);
-        ctx.workflow.statusMap = {};
-        Object.entries(statusMapData.byId).forEach(([id, entry]) => {
-            ctx.workflow.statusMap[id] = entry.category;
-            // Also map by name for resilience
-            ctx.workflow.statusMap[entry.name.toLowerCase()] = entry.category;
-        });
+        // Derive startStatuses: The "In Progress" entry point
+        if (ctx.columns && ctx.columns.length > 0) {
+            for (const col of ctx.columns) {
+                const colStatuses = col.statuses.map(s => s.id);
+                // Check if this column has ANY indeterminate status
+                const hasIndeterminate = colStatuses.some(id => ctx.workflow.statusMap[id] === 'indeterminate');
+                if (hasIndeterminate) {
+                    // Identify specific indeterminate statuses in this column
+                    const indeterminateStatuses = colStatuses.filter(id => ctx.workflow.statusMap[id] === 'indeterminate');
+                    if (indeterminateStatuses.length > 0) {
+                        ctx.workflow.startStatuses = indeterminateStatuses;
+                        break; // Found the start column
+                    }
+                }
+            }
+        }
 
-        ctx.workflow.startStatuses = Object.entries(ctx.workflow.statusMap)
-            .filter(([_, cat]) => cat === 'indeterminate')
-            .map(([key, _]) => key);
+        // Fallback: If map lookup failed completely (empty columns?), rely strictly on status categories
+        if (ctx.workflow.startStatuses.length === 0) {
+            ctx.workflow.startStatuses = Object.entries(ctx.workflow.statusMap)
+                .filter(([_, cat]) => cat === 'indeterminate')
+                .map(([key, _]) => key);
+        }
 
         ctx.workflow.doneStatuses = Object.entries(ctx.workflow.statusMap)
             .filter(([_, cat]) => cat === 'done')
@@ -228,6 +299,8 @@ export async function getProjectContext(projectKey: string, requestedBoardId?: n
 
     } catch (e) {
         console.error('CRITICAL: Failed to build project context', e);
+        // Do NOT return a half-baked context. If we failed to get project info, we should probably throw.
+        // However, resolvers expect a context. We return the SAFE DEFAULT (Business/None) context initialized above.
     }
 
     return ctx;
@@ -240,7 +313,8 @@ export async function getProjectContext(projectKey: string, requestedBoardId?: n
  * @rule Kanban Boards: Sprint metrics hidden (flow-based, no iterations)
  * @rule All Contexts: Flow metrics (WIP, cycle time, throughput) always valid
  */
-function computeMetricValidity(ctx: InternalContext): MetricValidity {
+// C-010 FIX: Export for unit testing
+export function computeMetricValidity(ctx: InternalContext): MetricValidity {
     const v: MetricValidity = { ...DEFAULT_METRIC_VALIDITY };
 
     // RULE 1: Business Projects have NO Sprint/Velocity metrics
@@ -257,6 +331,15 @@ function computeMetricValidity(ctx: InternalContext): MetricValidity {
         v.sprintHealth = 'hidden'; // No fixed timebox
         v.sprintProgress = 'hidden';
         v.scopeCreep = 'hidden';
+    }
+
+    // RULE 2.5: Scrum with NO Active Sprint (e.g. between sprints)
+    // M-003 FIX: Context-aware validity for inter-sprint periods
+    if (ctx.boardStrategy === 'scrum' && !ctx.sprintId) {
+        v.sprintHealth = 'hidden';
+        v.sprintProgress = 'hidden';
+        v.scopeCreep = 'hidden';
+        // Velocity (historic) remains valid as it shows past performance
     }
 
     // RULE 3: If no estimation (Issue Count only), velocity still valid but displayed as count

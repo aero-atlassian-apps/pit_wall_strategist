@@ -61,8 +61,6 @@ function countInProgressAtTime(issues: any[], at: Date, statusMap: any): number 
       else if (currentCat === 'new') lastCat = 'new'
       else if (currentCat === 'indeterminate') lastCat = 'indeterminate'
     } else {
-      // Sort and replay status changes up to cutoff
-      histories.sort((a: any, b: any) => new Date(a.created).getTime() - new Date(b.created).getTime())
       for (const h of histories) {
         const t = new Date(h.created).getTime()
         if (t > cutoff) break
@@ -73,11 +71,17 @@ function countInProgressAtTime(issues: any[], at: Date, statusMap: any): number 
           if (resolvedCat) {
             lastCat = resolvedCat
           } else {
-            // Fallback: String matching for status name (legacy compatibility)
+            // C-001 FIX: Fallback with warning for chameleon compliance
             const name = (statusChange.toString || '').toLowerCase()
-            if (name.includes('done') || name.includes('closed') || name.includes('resolved') || name.includes('complete')) lastCat = 'done'
-            else if (name.includes('to do') || name.includes('todo') || name.includes('open') || name.includes('backlog') || name.includes('new')) lastCat = 'new'
-            else lastCat = 'indeterminate'
+            if (name.includes('done') || name.includes('closed') || name.includes('resolved') || name.includes('complete')) {
+              lastCat = 'done'
+              console.warn(`[Chameleon] countInProgressAtTime: Using name heuristic for "${statusChange.toString}" -> done`)
+            } else if (name.includes('to do') || name.includes('todo') || name.includes('open') || name.includes('backlog') || name.includes('new')) {
+              lastCat = 'new'
+              console.warn(`[Chameleon] countInProgressAtTime: Using name heuristic for "${statusChange.toString}" -> new`)
+            } else {
+              lastCat = 'indeterminate'
+            }
           }
         }
       }
@@ -90,10 +94,17 @@ function countInProgressAtTime(issues: any[], at: Date, statusMap: any): number 
 export async function calculateVelocityTrend(projectKey: string): Promise<TrendData> {
   console.log(`[Velocity Trend] Starting calculation for ${projectKey}`)
 
+  // B-002 FIX: Fetch statusMap for chameleon-compliant done detection
+  const statusMap = await getProjectStatusMap(projectKey).catch(() => null)
+
   // 1. Fetch Issues with Changelog (reusing the helper from WIP Trend)
   // We get last 30 days to be safe for a 7-day trend
   const issues = await getRecentIssuesWithChangelog(projectKey);
-  console.log(`[Velocity Trend] Fetched ${issues.length} issues for ${projectKey}`);
+
+  // DIAGNOSTIC: Log issue completion stats
+  const withResolutionDate = issues.filter((i: any) => i.fields.resolutiondate).length;
+  const doneCategory = issues.filter((i: any) => i.fields.status?.statusCategory?.key === 'done').length;
+  console.log(`[Velocity Trend] Fetched ${issues.length} issues for ${projectKey} (${withResolutionDate} resolved, ${doneCategory} done)`);
 
   const now = new Date()
   const trend: any[] = []
@@ -110,7 +121,8 @@ export async function calculateVelocityTrend(projectKey: string): Promise<TrendD
     const startOfDay = new Date(date); startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(date); endOfDay.setHours(23, 59, 59, 999);
 
-    const count = countCompletedOnDay(issues, startOfDay, endOfDay);
+    // B-002 FIX: Pass statusMap for accurate done detection
+    const count = countCompletedOnDay(issues, startOfDay, endOfDay, statusMap);
 
     trend.push({
       date: dayStr,
@@ -138,7 +150,16 @@ export async function calculateVelocityTrend(projectKey: string): Promise<TrendD
   }
 }
 
-function countCompletedOnDay(issues: any[], start: Date, end: Date): number {
+/**
+ * B-002 FIX: Count completed items on a specific day.
+ * CHAMELEON COMPLIANT: Uses status category API for done detection.
+ * 
+ * @param issues - Issues with changelog
+ * @param start - Start of day
+ * @param end - End of day  
+ * @param statusMap - Pre-fetched status map for accurate category detection
+ */
+function countCompletedOnDay(issues: any[], start: Date, end: Date, statusMap?: any): number {
   let count = 0;
   const startTime = start.getTime();
   const endTime = end.getTime();
@@ -147,8 +168,6 @@ function countCompletedOnDay(issues: any[], start: Date, end: Date): number {
     // STRATEGY:
     // 1. Check if 'resolutiondate' falls in range (Most reliable if populated)
     // 2. Check if status CHANGED to 'Done' category in range (Changelog)
-
-    let completedAt: number | null = null;
 
     if (issue.fields.resolutiondate) {
       const resTime = new Date(issue.fields.resolutiondate).getTime();
@@ -162,27 +181,42 @@ function countCompletedOnDay(issues: any[], start: Date, end: Date): number {
     // This handles cases where Resolution isn't set but status is Done
     const histories = issue.changelog?.histories || [];
     if (histories.length > 0) {
-      // Find the *latest* transition to Done? Or any?
-      // Usually we care when it *became* Done.
-
       // Sort history descending to find latest 'Done' entry
       histories.sort((a: any, b: any) => new Date(b.created).getTime() - new Date(a.created).getTime());
 
       for (const h of histories) {
         const item = h.items.find((i: any) => i.field === 'status');
         if (item) {
-          const toStr = (item.toString || '').toLowerCase();
-          // Naive "Done" check if we don't have map here. 
-          // Ideally we passed statusMap, but let's assume standard names for now to unblock.
-          const isDone = toStr.includes('done') || toStr.includes('closed') || toStr.includes('resolved') || toStr.includes('complete');
+          // B-002 FIX: Chameleon-compliant done detection
+          let isDone = false
+
+          // Priority 1: Check if changelog item includes statusCategory
+          const toCategoryKey = (item as any).toStatusCategory?.key
+          if (toCategoryKey) {
+            isDone = toCategoryKey === 'done'
+          }
+          // Priority 2: Use statusMap lookup by ID
+          else if (statusMap && item.to) {
+            const resolvedCat = resolveCategoryFromId(statusMap, item.to)
+            if (resolvedCat) {
+              isDone = resolvedCat === 'done'
+            }
+          }
+          // Priority 3: Fallback to name heuristics (legacy, with warning)
+          else {
+            const toStr = (item.toString || '').toLowerCase();
+            isDone = toStr.includes('done') || toStr.includes('closed') ||
+              toStr.includes('resolved') || toStr.includes('complete');
+
+            if (isDone) {
+              console.warn(`[Chameleon] countCompletedOnDay: Using name heuristic for status "${item.toString}" (no statusMap). Consider passing statusMap for accuracy.`)
+            }
+          }
 
           if (isDone) {
             const time = new Date(h.created).getTime();
             if (time >= startTime && time <= endTime) {
               count++;
-              // Break after finding the transition for this day? 
-              // We should ensure we don't double count if moved Done->Done (rare)
-              // This is "Did it finish today?"
               break;
             }
           }

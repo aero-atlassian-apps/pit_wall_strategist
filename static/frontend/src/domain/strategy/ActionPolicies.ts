@@ -98,6 +98,48 @@ function analyzeRedFlag(issue: IssueContext): RelevanceResult {
     return { relevance: 'available' };
 }
 
+function analyzeBlueFlag(issue: IssueContext): RelevanceResult {
+    const { isBlocked, isStalled, daysInStatus, priority, linkedIssues } = issue;
+
+    // Critical: Blocking other work
+    if (isBlocked && (linkedIssues || 0) > 0 && (priority === 'High' || priority === 'Highest')) {
+        return { relevance: 'critical', reason: 'Blocking high-priority dependent work' };
+    }
+
+    // Recommended: Issue is blocking or being blocked
+    if (isBlocked || (isStalled && (linkedIssues || 0) > 1)) {
+        return { relevance: 'recommended', reason: 'Check dependency chain' };
+    }
+
+    // Hidden for done items
+    if (issue.statusCategory === 'done') {
+        return { relevance: 'hidden' };
+    }
+
+    return { relevance: 'available' };
+}
+
+function analyzePushLimit(issue: IssueContext): RelevanceResult {
+    const { priority, statusCategory, daysInStatus, isStalled } = issue;
+
+    // Critical: High priority stuck for too long
+    if ((priority === 'High' || priority === 'Highest') && statusCategory === 'indeterminate' && daysInStatus > 3) {
+        return { relevance: 'critical', reason: 'High priority needs push - escalate effort' };
+    }
+
+    // Recommended: Medium priority stalled
+    if (priority === 'Medium' && isStalled && daysInStatus > 5) {
+        return { relevance: 'recommended', reason: 'Consider pushing harder' };
+    }
+
+    // Hidden for done/low priority items
+    if (statusCategory === 'done' || priority === 'Low' || priority === 'Lowest') {
+        return { relevance: 'hidden' };
+    }
+
+    return { relevance: 'available' };
+}
+
 function analyzeRetire(issue: IssueContext, board: BoardContext): RelevanceResult {
     const { sprintActive, sprintDaysRemaining, boardType, wipLimit, wipCurrent } = board;
     const { priority, statusCategory, issueType, daysInStatus } = issue;

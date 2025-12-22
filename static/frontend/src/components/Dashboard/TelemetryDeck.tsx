@@ -131,36 +131,34 @@ type Props = {
 }
 
 export default function TelemetryDeck({ telemetryData, timingMetrics, trendData, boardType = 'scrum', projectContext, onRefresh }: Props) {
-    const locale = (window as any).__PWS_LOCALE || 'en'
-    const [activeTab, setActiveTab] = useState<'vitals' | 'trends'>('vitals')
     const { context } = useBoardContext()
 
-    // Derive boardType properly (like NextGen components)
-    // context.boardStrategy can be 'scrum', 'kanban', or 'none'
-    // context.projectType can be 'software' or 'business'
-    let derivedBoardType: 'scrum' | 'kanban' | 'business';
-    if (context?.projectType === 'business') {
-        derivedBoardType = 'business';
-    } else if (context?.boardStrategy === 'kanban') {
-        derivedBoardType = 'kanban';
-    } else if (context?.boardStrategy === 'scrum') {
-        derivedBoardType = 'scrum';
-    } else {
-        derivedBoardType = boardType || 'scrum'; // fallback to prop
-    }
+    // DFT-005 FIX: Use context locale instead of window global
+    const locale = context?.locale || (window as any).__PWS_LOCALE || 'en'
+    const [activeTab, setActiveTab] = useState<'vitals' | 'trends'>('vitals')
 
-    const populationMode = getPopulationMode(derivedBoardType)
+    // DFT-002 FIX: Trust the canonical context instead of re-deriving board type
+    // Use context.boardStrategy and context.projectType directly
+    const isBusinessProject = context?.projectType === 'business';
+    const isKanban = context?.boardStrategy === 'kanban';
+    const isScrum = context?.boardStrategy === 'scrum';
+
+    // Derive population mode for i18n labels
+    const populationMode: 'scrum' | 'flow' | 'process' =
+        isBusinessProject ? 'process' :
+            isKanban ? 'flow' :
+                'scrum';
 
     // Use metricValidity from context (canonical source of truth)
     const metricValidity = context?.metricValidity || {};
 
-    // Visibility flags based on metricValidity
-    const showVelocity = metricValidity.velocity !== 'hidden';
+    // Visibility flags based on metricValidity (STRICT - respect backend decision)
+    const showVelocity = metricValidity.velocity !== 'hidden' && isScrum;
     const showCycleTime = metricValidity.cycleTime !== 'hidden';
     const showThroughput = metricValidity.throughput !== 'hidden';
-    // Sprint metrics only show for scrum
-    const showSprintMetrics = showVelocity && derivedBoardType === 'scrum';
-    // Flow metrics show for kanban/business
+    // Sprint metrics only show for scrum with valid velocity
+    const showSprintMetrics = showVelocity;
+    // Flow metrics show for kanban/business OR when sprint metrics not shown
     const showFlowMetrics = !showSprintMetrics;
 
     const getWipColor = (load: number) => {
@@ -218,7 +216,13 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                     {showFlowMetrics && (
                         <>
                             <KPIBox title={telemetryData?.cycleTimeExplanation || t('cycleTimeHelp', locale)}>
-                                <KPIValue style={{ fontSize: '32px' }}>{telemetryData?.cycleTime ? `${telemetryData.cycleTime}h` : '-'}</KPIValue>
+                                <KPIValue style={{ fontSize: '32px' }}>
+                                    {telemetryData?.cycleTime
+                                        ? (telemetryData.cycleTime < 24
+                                            ? `${Math.round(telemetryData.cycleTime)}h`
+                                            : `${Math.round(telemetryData.cycleTime / 24 * 10) / 10}d`)
+                                        : '-'}
+                                </KPIValue>
                                 <KPILabel>{tPop('timeMetric', populationMode, locale)}</KPILabel>
                             </KPIBox>
                             <KPIBox title={telemetryData?.throughputExplanation || t('throughputHelp', locale)}>
@@ -288,15 +292,18 @@ export default function TelemetryDeck({ telemetryData, timingMetrics, trendData,
                                 change={trendData.wip?.change}
                             />
                         </div>
-                        <div>
-                            <Sparkline
-                                data={trendData.velocity?.data}
-                                label={t('velocity', locale)}
-                                direction={trendData.velocity?.direction}
-                                change={trendData.velocity?.change}
-                                invertColors={true}
-                            />
-                        </div>
+                        {/* DFT-004 FIX: Only show velocity trend in Scrum context */}
+                        {showVelocity && trendData.velocity && (
+                            <div>
+                                <Sparkline
+                                    data={trendData.velocity.data}
+                                    label={t('velocity', locale)}
+                                    direction={trendData.velocity.direction}
+                                    change={trendData.velocity.change}
+                                    invertColors={true}
+                                />
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

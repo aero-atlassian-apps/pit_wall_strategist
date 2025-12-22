@@ -12,6 +12,7 @@ import { TelemetryService } from '../../infrastructure/services/TelemetryService
 import { getEffectiveConfig } from '../config/ConfigResolvers';
 import { mockDevOps } from '../mocks';
 import { getAdvancedAnalytics } from '../advancedAnalytics';
+import { getProjectContext } from '../contextEngine'; // Import Context Engine
 import { checkProjectDevOpsStatus, detectNoCommitIssues } from '../devOpsDetection';
 import { GetFlowMetricsUseCase } from '../../application/usecases/GetFlowMetricsUseCase';
 import type { BoardData } from '../../types/telemetry';
@@ -30,7 +31,10 @@ export function registerAnalyticsResolvers(resolver: any): void {
             console.log('[ENTRY] getAdvancedAnalytics for project:', context?.extension?.project?.key);
             const projectKey = context?.extension?.project?.key as string;
 
-            // Fetch board data
+            // Fetch Strict Context (Canonical Truth)
+            const strictContext = await getProjectContext(projectKey);
+
+            // Fetch board data (Legacy, kept for data retrieval)
             const boardData = await boardRepository.getBoardData(projectKey, userConfig, context);
 
             const issues = boardData.issues || [];
@@ -46,12 +50,13 @@ export function registerAnalyticsResolvers(resolver: any): void {
             const fields = await TelemetryService.discoverCustomFields();
             const storyPointsFields = fields.storyPoints || [];
 
-            // Calculate advanced analytics
+            // Calculate advanced analytics with STRICT VALIDITY
             const analytics = await getAdvancedAnalytics(
                 issues,
                 projectKey,
                 sprintStartDate,
                 sprintEndDate,
+                strictContext.metricValidity, // INJECTED VALIDITY
                 {
                     historicalVelocity: userConfig.assigneeCapacity * 5 || 20,
                     stalledThresholdHours: userConfig.stalledThresholdHours || 24,
@@ -92,8 +97,9 @@ export function registerAnalyticsResolvers(resolver: any): void {
 
         } catch (error: any) {
             console.error('Error fetching flow metrics:', error);
+            // M-011 FIX: Return success: false so frontend knows this is an error state
             return {
-                success: true,
+                success: false,
                 isEmpty: true,
                 error: error.message,
                 message: `Unable to calculate flow metrics: ${error.message}`,

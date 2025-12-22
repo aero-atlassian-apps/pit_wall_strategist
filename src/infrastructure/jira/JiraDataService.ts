@@ -19,27 +19,59 @@ export class JiraDataService {
      * Docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post
      * Scope: read:issue:jira
      */
-    async searchJqlUserOnly(jql: string, fields: string[], limit = 100, expand?: string | string[]): Promise<{ ok: boolean, issues: JiraIssue[], status?: number }> {
-        const body: any = { jql, maxResults: limit, fields };
-        if (expand) {
-            body.expand = Array.isArray(expand) ? expand.join(',') : expand;
-        }
-        const resp = await api.asUser().requestJira(route`/rest/api/3/search/jql`, {
-            method: 'POST',
-            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
+    /**
+     * Search issues using JQL with automatic pagination (asUser)
+     * B-001 FIX: Now paginates to retrieve ALL matching issues up to limit
+     */
+    async searchJqlUserOnly(jql: string, fields: string[], limit = 1000, expand?: string | string[]): Promise<{ ok: boolean, issues: JiraIssue[], status?: number, total?: number }> {
+        const allIssues: JiraIssue[] = [];
+        let startAt = 0;
+        const maxPerRequest = 100; // Jira API page size limit
+        let total = 0;
 
-        if (!resp.ok) {
-            const text = await resp.text();
-            console.log(`[Telemetry] JQL POST Error: ${resp.status} ${text}`);
-            recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asUser)', ok: false, status: resp.status });
-            return { ok: false, issues: [], status: resp.status };
+        while (allIssues.length < limit) {
+            const body: any = {
+                jql,
+                maxResults: Math.min(maxPerRequest, limit - allIssues.length),
+                startAt,
+                fields
+            };
+            if (expand) {
+                body.expand = Array.isArray(expand) ? expand.join(',') : expand;
+            }
+
+            const resp = await api.asUser().requestJira(route`/rest/api/3/search/jql`, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            if (!resp.ok) {
+                const text = await resp.text();
+                console.log(`[Telemetry] JQL POST Error: ${resp.status} ${text}`);
+                recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asUser)', ok: false, status: resp.status });
+                // C-001 FIX: Return partial data with error flag if we have some results
+                if (allIssues.length > 0) {
+                    return { ok: true, issues: allIssues, status: resp.status, total };
+                }
+                return { ok: false, issues: [], status: resp.status };
+            }
+
+            const data = await resp.json() as JiraSearchResult;
+            total = data.total;
+            const pageIssues = data?.issues || [];
+            allIssues.push(...pageIssues);
+
+            // Exit if we got all results or no more pages
+            if (pageIssues.length < maxPerRequest || allIssues.length >= total || allIssues.length >= limit) {
+                break;
+            }
+
+            startAt += pageIssues.length;
         }
 
-        const data = await resp.json() as JiraSearchResult;
         recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asUser)', ok: true, status: 200 });
-        return { ok: true, issues: data?.issues || [] };
+        return { ok: true, issues: allIssues, total };
     }
 
     /**
@@ -49,27 +81,58 @@ export class JiraDataService {
      *
      * @deprecated Prefer searchJqlUserOnly unless system context is explicitly required.
      */
-    async searchJqlAsApp(jql: string, fields: string[], limit = 100, expand?: string | string[]): Promise<{ ok: boolean, issues: JiraIssue[], status?: number }> {
-        const body: any = { jql, maxResults: limit, fields };
-        if (expand) {
-            body.expand = Array.isArray(expand) ? expand.join(',') : expand;
-        }
-        const resp = await api.asApp().requestJira(route`/rest/api/3/search/jql`, {
-            method: 'POST',
-            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
+    /**
+     * Search issues using JQL with automatic pagination (asApp)
+     * B-001 FIX: Now paginates to retrieve ALL matching issues up to limit
+     * @deprecated Prefer searchJqlUserOnly unless system context is explicitly required.
+     */
+    async searchJqlAsApp(jql: string, fields: string[], limit = 1000, expand?: string | string[]): Promise<{ ok: boolean, issues: JiraIssue[], status?: number, total?: number }> {
+        const allIssues: JiraIssue[] = [];
+        let startAt = 0;
+        const maxPerRequest = 100;
+        let total = 0;
 
-        if (!resp.ok) {
-            const text = await resp.text();
-            console.log(`[Telemetry] JQL POST (asApp) Error: ${resp.status} ${text}`);
-            recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asApp)', ok: false, status: resp.status });
-            return { ok: false, issues: [], status: resp.status };
+        while (allIssues.length < limit) {
+            const body: any = {
+                jql,
+                maxResults: Math.min(maxPerRequest, limit - allIssues.length),
+                startAt,
+                fields
+            };
+            if (expand) {
+                body.expand = Array.isArray(expand) ? expand.join(',') : expand;
+            }
+
+            const resp = await api.asApp().requestJira(route`/rest/api/3/search/jql`, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            if (!resp.ok) {
+                const text = await resp.text();
+                console.log(`[Telemetry] JQL POST (asApp) Error: ${resp.status} ${text}`);
+                recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asApp)', ok: false, status: resp.status });
+                if (allIssues.length > 0) {
+                    return { ok: true, issues: allIssues, status: resp.status, total };
+                }
+                return { ok: false, issues: [], status: resp.status };
+            }
+
+            const data = await resp.json() as JiraSearchResult;
+            total = data.total;
+            const pageIssues = data?.issues || [];
+            allIssues.push(...pageIssues);
+
+            if (pageIssues.length < maxPerRequest || allIssues.length >= total || allIssues.length >= limit) {
+                break;
+            }
+
+            startAt += pageIssues.length;
         }
 
-        const data = await resp.json() as JiraSearchResult;
         recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asApp)', ok: true, status: 200 });
-        return { ok: true, issues: data?.issues || [] };
+        return { ok: true, issues: allIssues, total };
     }
 
     /**

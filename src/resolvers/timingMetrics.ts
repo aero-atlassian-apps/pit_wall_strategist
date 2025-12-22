@@ -127,7 +127,39 @@ export function mapStatusToColumn(statusName?: string, columns?: Array<{ name: s
   return col?.name || null
 }
 
-function approximateCategoryFromStatus(statusName?: string, statusMap?: any, issueTypeName?: string): 'new' | 'indeterminate' | 'done' { if (!statusName) return 'indeterminate'; const mapped = resolveCategoryForIssue(statusMap || null, statusName, issueTypeName); if (mapped) return mapped; const name = statusName.toLowerCase(); if (name.includes('done') || name.includes('closed') || name.includes('resolved') || name.includes('complete') || name.includes('finished') || name.includes('released')) return 'done'; if (name.includes('to do') || name.includes('todo') || name.includes('open') || name.includes('backlog') || name.includes('new') || name.includes('created')) return 'new'; return 'indeterminate' }
+/**
+ * B-003 FIX: Chameleon-compliant status category resolution.
+ * Uses statusMap first, falls back to name heuristics with warning.
+ */
+function approximateCategoryFromStatus(
+  statusName?: string,
+  statusMap?: any,
+  issueTypeName?: string
+): 'new' | 'indeterminate' | 'done' {
+  if (!statusName) return 'indeterminate'
+
+  // Priority 1: Use statusMap lookup (chameleon-compliant)
+  const mapped = resolveCategoryForIssue(statusMap || null, statusName, issueTypeName)
+  if (mapped) return mapped
+
+  // Priority 2: Name heuristics fallback (with warning)
+  const name = statusName.toLowerCase()
+
+  if (name.includes('done') || name.includes('closed') || name.includes('resolved') ||
+    name.includes('complete') || name.includes('finished') || name.includes('released')) {
+    console.warn(`[Chameleon] approximateCategoryFromStatus: Using name heuristic for status "${statusName}" -> done (no statusMap). Consider passing statusMap for accuracy.`)
+    return 'done'
+  }
+
+  if (name.includes('to do') || name.includes('todo') || name.includes('open') ||
+    name.includes('backlog') || name.includes('new') || name.includes('created')) {
+    console.warn(`[Chameleon] approximateCategoryFromStatus: Using name heuristic for status "${statusName}" -> new (no statusMap). Consider passing statusMap for accuracy.`)
+    return 'new'
+  }
+
+  // Default to indeterminate (in-progress)
+  return 'indeterminate'
+}
 
 function getDefaultCycleTime(): SectorTimes { return {} }
 
