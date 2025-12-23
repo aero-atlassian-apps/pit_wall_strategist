@@ -17,7 +17,7 @@ const PLATFORM = process.env.PLATFORM || 'atlassian'
 // Helper to get allowed values for a field
 async function getFieldAllowedValues(issueKey: string, fieldId: string): Promise<any[]> {
   try {
-    const response = await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}/editmeta`, { headers: { Accept: 'application/json' } });
+    const response = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/editmeta`, { headers: { Accept: 'application/json' } });
     if (response.ok) {
       const data = await response.json();
       const fieldMeta = data.fields?.[fieldId];
@@ -55,7 +55,7 @@ export async function splitTicket({ issueKey, subtasks }: { issueKey: string; su
   const createdSubtasks: string[] = []
 
   for (const task of tasksToCreate) {
-    const response = await api.asApp().requestJira(route`/rest/api/3/issue`, {
+    const response = await api.asUser().requestJira(route`/rest/api/3/issue`, {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -86,9 +86,9 @@ export async function splitTicket({ issueKey, subtasks }: { issueKey: string; su
  */
 export async function reassignTicket({ issueKey, newAssignee }: { issueKey: string; newAssignee: string }) {
   if (PLATFORM === 'local') { return mockActionResult('reassign') }
-  const response = await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}`, { method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { assignee: { accountId: newAssignee } } }) })
+  const response = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, { method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { assignee: { accountId: newAssignee } } }) })
   if (!response.ok) throw new Error(`Failed to reassign: ${response.status}`)
-  const userResponse = await api.asApp().requestJira(route`/rest/api/3/user?accountId=${newAssignee}`, { headers: { Accept: 'application/json' } })
+  const userResponse = await api.asUser().requestJira(route`/rest/api/3/user?accountId=${newAssignee}`, { headers: { Accept: 'application/json' } })
   const user = await userResponse.json()
   await addComment(issueKey, `🏎️ *PIT WALL STRATEGY: TEAM ORDERS*\n\nRace Engineer has reassigned this ticket to *${user.displayName}* for faster lap times.\n\n_"Copy, understood. New driver on track."_\n\n_Strategy executed via Pit Wall Strategist_`)
   return { success: true, message: `Reassigned to ${user.displayName}` }
@@ -103,7 +103,7 @@ export async function deferTicket({ issueKey }: { issueKey: string }) {
   if (PLATFORM === 'local') { return mockActionResult('defer') }
 
   // 1. Try to transition to "Backlog" or "To Do" status
-  const transitionsResponse = await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { headers: { Accept: 'application/json' } })
+  const transitionsResponse = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { headers: { Accept: 'application/json' } })
   const transitionsData = await transitionsResponse.json()
   const list = (transitionsData?.transitions || [])
 
@@ -112,7 +112,7 @@ export async function deferTicket({ issueKey }: { issueKey: string }) {
     list.find((t: any) => t.name?.toLowerCase?.().includes('backlog') || t.name?.toLowerCase?.().includes('to do'))
 
   if (backlogTransition) {
-    await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ transition: { id: backlogTransition.id } }) })
+    await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ transition: { id: backlogTransition.id } }) })
   }
 
   // 2. Remove from active sprint (Clear Sprint Field)
@@ -123,7 +123,7 @@ export async function deferTicket({ issueKey }: { issueKey: string }) {
       // Check if field is present on issue before trying to clear it (avoid 400 on Kanban)
       const issue = await getIssue(issueKey);
       if (issue.fields[sprintField]) {
-        await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}`, {
+        await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, {
           method: 'PUT',
           headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
           body: JSON.stringify({ fields: { [sprintField]: null } })
@@ -144,7 +144,7 @@ export async function deferTicket({ issueKey }: { issueKey: string }) {
  */
 export async function changePriority({ issueKey, priority }: { issueKey: string; priority: string }) {
   if (PLATFORM === 'local') { return mockActionResult('priority') }
-  const response = await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}`, {
+  const response = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, {
     method: 'PUT',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields: { priority: { name: priority } } })
@@ -160,7 +160,7 @@ export async function changePriority({ issueKey, priority }: { issueKey: string;
  */
 export async function transitionIssue({ issueKey, transitionId, transitionName }: { issueKey: string; transitionId?: string; transitionName?: string }) {
   if (PLATFORM === 'local') { return mockActionResult('transition') }
-  const transitionsResponse = await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { headers: { Accept: 'application/json' } })
+  const transitionsResponse = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { headers: { Accept: 'application/json' } })
   const transitionsData = await transitionsResponse.json()
   const list = (transitionsData?.transitions || [])
 
@@ -176,7 +176,7 @@ export async function transitionIssue({ issueKey, transitionId, transitionName }
 
   if (!target) throw new Error('No available transitions')
 
-  await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ transition: { id: target.id } }) })
+  await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/transitions`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ transition: { id: target.id } }) })
   await addComment(issueKey, `🏎️ *PIT WALL STRATEGY: PUSH TO THE LIMIT*\n\nTransitioned to *${target.name}*. Full throttle!\n\n_Strategy executed via Pit Wall Strategist_`)
   return { success: true, message: `Transitioned to ${target.name}` }
 }
@@ -192,7 +192,7 @@ export async function addBlockerFlag({ issueKey, reason }: { issueKey: string; r
   const issue = await getIssue(issueKey)
   const existingLabels = issue.fields.labels || []
   if (!existingLabels.includes('blocked')) {
-    await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}`, {
+    await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, {
       method: 'PUT',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: { labels: [...existingLabels, 'blocked'] } })
@@ -211,7 +211,7 @@ export async function addBlockerFlag({ issueKey, reason }: { issueKey: string; r
         allowedValues[0]; // Fallback to first option if exists
 
       if (impedimentOption) {
-        await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}`, {
+        await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, {
           method: 'PUT',
           headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
           body: JSON.stringify({ fields: { [fields.flagged]: [{ value: impedimentOption.value }] } })
@@ -236,7 +236,7 @@ export async function linkIssues({ issueKey, linkedIssueKey, linkType }: { issue
   // Note: Link types are also configurable, but 'Relates' is a standard system type usually present.
   // Checking for link type existence would be even more robust, but 'Relates' is very safe.
 
-  await api.asApp().requestJira(route`/rest/api/3/issueLink`, {
+  await api.asUser().requestJira(route`/rest/api/3/issueLink`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -270,7 +270,7 @@ export async function updateEstimate({ issueKey, storyPoints, timeEstimate }: { 
 
   if (timeEstimate) fields.timeoriginalestimate = timeEstimate
 
-  await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}`, {
+  await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, {
     method: 'PUT',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields })
@@ -309,7 +309,7 @@ export async function createSubtask({ issueKey, summary, assignee }: { issueKey:
     issuetype: { name: subtaskType.name }
   }
   if (assignee) fields.assignee = { accountId: assignee }
-  const response = await api.asApp().requestJira(route`/rest/api/3/issue`, {
+  const response = await api.asUser().requestJira(route`/rest/api/3/issue`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields })
@@ -322,8 +322,8 @@ export async function createSubtask({ issueKey, summary, assignee }: { issueKey:
 
 // ============ HELPERS ============
 
-async function getIssue(issueKey: string) { const response = await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}`, { headers: { Accept: 'application/json' } }); if (!response.ok) throw new Error(`Failed to get issue: ${response.status}`); return response.json() }
-async function addComment(issueKey: string, body: string) { await api.asApp().requestJira(route`/rest/api/3/issue/${issueKey}/comment`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ body: { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text: body }] }] } }) }) }
+async function getIssue(issueKey: string) { const response = await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}`, { headers: { Accept: 'application/json' } }); if (!response.ok) throw new Error(`Failed to get issue: ${response.status}`); return response.json() }
+async function addComment(issueKey: string, body: string) { await api.asUser().requestJira(route`/rest/api/3/issue/${issueKey}/comment`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ body: { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text: body }] }] } }) }) }
 
 // ============ ACTION ROUTER ============
 
