@@ -48,7 +48,8 @@ export class JiraDataService {
 
             if (!resp.ok) {
                 const text = await resp.text();
-                console.log(`[Telemetry] JQL POST Error: ${resp.status} ${text}`);
+                // SECURITY: Truncate response body to prevent PII leakage
+                console.log(`[Telemetry] JQL POST Error: ${resp.status} ${text.substring(0, 200)}`);
                 recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asUser)', ok: false, status: resp.status });
                 // C-001 FIX: Return partial data with error flag if we have some results
                 if (allIssues.length > 0) {
@@ -111,7 +112,8 @@ export class JiraDataService {
 
             if (!resp.ok) {
                 const text = await resp.text();
-                console.log(`[Telemetry] JQL POST (asApp) Error: ${resp.status} ${text}`);
+                // SECURITY: Truncate response body to prevent PII leakage
+                console.log(`[Telemetry] JQL POST (asApp) Error: ${resp.status} ${text.substring(0, 200)}`);
                 recordFetchStatus({ endpoint: '/rest/api/3/search/jql (POST asApp)', ok: false, status: resp.status });
                 if (allIssues.length > 0) {
                     return { ok: true, issues: allIssues, status: resp.status, total };
@@ -141,20 +143,18 @@ export class JiraDataService {
      * Scope: read:sprint:jira-software
      */
     async getBoardActiveSprint(boardId: number): Promise<Sprint | null> {
+        // SECURITY: Strict asUser check. If user cannot see sprint, do not fallback to App.
         let response: any = null;
         try {
             response = await api.asUser().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=active`, { headers: { Accept: 'application/json' } });
         } catch { response = null; }
-        if (!response || !response.ok) {
-            try {
-                response = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=active`, { headers: { Accept: 'application/json' } });
-            } catch { response = null; }
-        }
+
         if (response && response.ok) {
             const data = await response.json();
             recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=active`, ok: true, status: 200 });
             if (data.values?.length) return data.values[0];
         }
+
         recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=active`, ok: false, status: response?.status || 500 });
         return null;
     }
@@ -165,19 +165,24 @@ export class JiraDataService {
      * Scope: read:sprint:jira-software
      */
     async getBoardFutureSprints(boardId: number): Promise<Sprint | null> {
-        let response = await api.asUser().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=future`, { headers: { Accept: 'application/json' } });
-        if (!response.ok) {
-            response = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=future`, { headers: { Accept: 'application/json' } });
-        }
+        // SECURITY: Strict asUser check.
+        const response = await api.asUser().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=future`, { headers: { Accept: 'application/json' } });
+
         if (response.ok) {
             const data = await response.json();
             if (data.values?.length) return data.values[0];
-        }
-        if (!response.ok) {
-            try { const txt = await response.text(); console.log(`[Telemetry] getBoardFutureSprints Error: ${response.status} ${txt}`) } catch { }
+        } else {
+            try {
+                const txt = await response.text();
+                // SECURITY: Truncate response body
+                console.log(`[Telemetry] getBoardFutureSprints Error: ${response.status} ${txt.substring(0, 200)}`)
+            } catch { }
             recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=future`, ok: false, status: response.status });
         }
-        else { recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=future`, ok: true, status: 200 }); }
+
+        if (response.ok) {
+            recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=future`, ok: true, status: 200 });
+        }
         return null;
     }
 
@@ -187,11 +192,12 @@ export class JiraDataService {
      * Scope: read:sprint:jira-software
      */
     async getClosedSprints(boardId: number, limit: number = 5): Promise<Sprint[]> {
-        const responseUser = await api.asUser().requestJira(
+        // SECURITY: Strict asUser check.
+        const response = await api.asUser().requestJira(
             route`/rest/agile/1.0/board/${boardId}/sprint?state=closed&maxResults=${limit}`,
             { headers: { Accept: 'application/json' } }
         );
-        let response = responseUser.ok ? responseUser : await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/sprint?state=closed&maxResults=${limit}`, { headers: { Accept: 'application/json' } });
+
         if (response.ok) {
             const data = await response.json();
             // Jira returns closed sprints - sort by completeDate descending to get most recent
@@ -205,7 +211,11 @@ export class JiraDataService {
             // Take the first 'limit' (most recently closed sprints)
             return sprints.slice(0, limit);
         }
-        try { const txt = await response.text(); console.log(`[Telemetry] getClosedSprints Error: ${response.status} ${txt}`) } catch { }
+        try {
+            const txt = await response.text();
+            // SECURITY: Truncate response body
+            console.log(`[Telemetry] getClosedSprints Error: ${response.status} ${txt.substring(0, 200)}`)
+        } catch { }
         recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/sprint?state=closed`, ok: false, status: response.status });
         return [];
     }
@@ -221,16 +231,19 @@ export class JiraDataService {
         if (expand && expand.length) params.push(`expand=${encodeURIComponent(expand.join(','))}`)
         const url = route`/rest/agile/1.0/sprint/${sprintId}/issue?${params.join('&')}`
 
-        let response = await api.asUser().requestJira(url, { headers: { Accept: 'application/json' } })
-        if (!response.ok) {
-            response = await api.asApp().requestJira(url, { headers: { Accept: 'application/json' } })
-        }
+        // SECURITY: Strict asUser check.
+        const response = await api.asUser().requestJira(url, { headers: { Accept: 'application/json' } })
+
         if (response.ok) {
             const data = await response.json()
             recordFetchStatus({ endpoint: `/rest/agile/1.0/sprint/${sprintId}/issue`, ok: true, status: 200 });
             return data.issues || []
         }
-        try { const txt = await response.text(); console.log(`[Telemetry] getSprintIssues Error: ${response.status} ${txt}`) } catch { }
+        try {
+            const txt = await response.text();
+            // SECURITY: Truncate response body
+            console.log(`[Telemetry] getSprintIssues Error: ${response.status} ${txt.substring(0, 200)}`)
+        } catch { }
         recordFetchStatus({ endpoint: `/rest/agile/1.0/sprint/${sprintId}/issue`, ok: false, status: response.status });
         return []
     }
@@ -241,10 +254,9 @@ export class JiraDataService {
      * Scope: read:board-scope.admin:jira-software
      */
     async getBoardConfiguration(boardId: number) {
-        let response = await api.asUser().requestJira(route`/rest/agile/1.0/board/${boardId}/configuration`, { headers: { Accept: 'application/json' } });
-        if (!response.ok) {
-            response = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/configuration`, { headers: { Accept: 'application/json' } });
-        }
+        // SECURITY: Strict asUser check.
+        const response = await api.asUser().requestJira(route`/rest/agile/1.0/board/${boardId}/configuration`, { headers: { Accept: 'application/json' } });
+
         if (response.ok) return await response.json();
         return null;
     }
@@ -263,18 +275,10 @@ export class JiraDataService {
                 { headers: { Accept: 'application/json' } }
             );
         } catch (e) {
-            // asUser threw (e.g. NEEDS_AUTHENTICATION_ERR), fallback to asApp
+            // asUser threw (e.g. NEEDS_AUTHENTICATION_ERR), return empty
             response = null;
         }
-        if (!response || !response.ok) {
-            try {
-                response = await api.asApp().requestJira(route`/rest/agile/1.0/board/${boardId}/issue?maxResults=100`, { headers: { Accept: 'application/json' } });
-            } catch (e) {
-                // asApp also failed
-                recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/issue`, ok: false, status: 500 });
-                return [];
-            }
-        }
+
         if (response && response.ok) {
             const data = await response.json();
             recordFetchStatus({ endpoint: `/rest/agile/1.0/board/${boardId}/issue`, ok: true, status: 200 });
