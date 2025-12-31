@@ -1,0 +1,4 @@
+## 2024-05-23 - [Privilege Escalation in Rovo Actions]
+**Vulnerability:** The Rovo Actions resolver (`src/resolvers/rovoActions.ts`) was using `api.asApp()` for all write operations (e.g., transitioning issues, adding comments). This allows any user who can invoke these actions to perform them with the app's elevated permissions, potentially bypassing Jira's permission schemes (e.g., users who shouldn't be able to transition issues could do so).
+**Learning:** Even if the app has permission, we must always perform actions on behalf of the user (`api.asUser()`) to respect the principle of least privilege and Jira's native permission model. `asApp()` should only be used for system-level tasks that *must* bypass user permissions (which is rare in this context).
+**Prevention:** Strictly enforce `api.asUser()` for all mutation operations. Code reviews must flag `asApp()` usage in resolvers handling user-initiated actions.
