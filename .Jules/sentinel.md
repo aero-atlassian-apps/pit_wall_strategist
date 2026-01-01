@@ -1,0 +1,4 @@
+## 2024-05-23 - [Critical Security Fix] Enforcing User Permissions on Rovo Actions
+**Vulnerability:** The Rovo Actions handler (`src/resolvers/rovoActions.ts`) was using `api.asApp()` for all write operations (e.g., splitting tickets, reassigning issues). This bypassed user-level permission checks, potentially allowing unauthorized users to perform actions they shouldn't be able to (Privilege Escalation).
+**Learning:** Even if the logic is correct, using `asApp()` implicitly trusts the caller. In a multi-tenant or multi-user environment like Jira, we must always operate under the user's specific context (`asUser()`) for any state-modifying action to respect Jira's permission scheme.
+**Prevention:** All future write operations in resolvers must use `api.asUser()`. Added a dedicated unit test `tests/unit/rovoActionsSecurity.test.ts` to enforce this pattern by verifying the correct API client is invoked.
