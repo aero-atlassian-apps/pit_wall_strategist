@@ -1,0 +1,4 @@
+## 2024-05-23 - Authorization Bypass via App Impersonation
+**Vulnerability:** The Rovo Actions handler (`src/resolvers/rovoActions.ts`) was using `api.asApp()` for all write operations (e.g., transitioning issues, reassigning tickets). This allowed the application to perform actions on behalf of the user, bypassing Jira's permission checks (e.g., a user who cannot transition an issue could do so via the Rovo agent).
+**Learning:** Even if an app has the `write:issue:jira` scope, it must respect the invoking user's permissions for interactive features. The "Confused Deputy" problem arises when a privileged service (the app) performs actions for an unprivileged client (the user) without verifying authorization.
+**Prevention:** All user-initiated write operations must use `api.asUser()`. Added a dedicated security test suite `tests/unit/rovoActionsSecurity.test.ts` to strictly enforce that `asUser()` is used for these actions, preventing future regressions.
